@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#1e1b4b" />
+  <title>FishLog - Heatmap</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+  <style>
+    #map { height: 70vh; width: 100%; border-radius: 0.75rem; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans pb-10">
+
+  <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
+    <h1 class="text-3xl font-bold tracking-tight">Activity Heatmap</h1>
+    <p class="text-indigo-200 text-sm mt-1">Visualizing Catch Density • Geneva, NY</p>
+    <div class="mt-4 flex gap-2 justify-center flex-wrap">
+      <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Log</a>
+      <a href="gallery.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Gallery</a>
+      <a href="leaderboard.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Leaders</a>
+      <a href="heatmap.html" class="px-4 py-2 bg-indigo-500 rounded-lg text-sm font-semibold">Heatmap</a>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4">
+    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 mb-6">
+      <div id="map" class="z-0"></div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+        <h3 class="font-bold text-indigo-900 mb-2">How it works</h3>
+        <p class="text-xs text-indigo-800 leading-relaxed">
+          The heatmap displays the density of catches across the lake. 
+          <strong>Red areas</strong> indicate multiple catches or high-weight trophies. 
+          <strong>Secret Spots</strong> are excluded from this public visualization for privacy.
+        </p>
+      </div>
+      <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+        <h3 class="font-bold text-slate-800 mb-2">Map Controls</h3>
+        <button onclick="resetView()" class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-sm hover:bg-indigo-700 transition">Reset View to Geneva</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+    let map;
+
+    async function initHeatmap() {
+      // 1. Initialize Map centered on Geneva/Seneca Lake
+      map = L.map('map').setView([42.8689, -76.9774], 12);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      try {
+        const res = await fetch(DB_URL);
+        const data = await res.json();
+        if (!data) return;
+
+        const catches = Object.values(data);
+        
+        // 2. Prepare Heat Data [lat, lon, intensity]
+        const heatPoints = catches
+          .filter(c => c.loc && !c.secretSpot) // Respect privacy toggle
+          .map(c => {
+            // Intensity is influenced by weight (trophies glow brighter)
+            const intensity = c.weight ? Math.min(parseFloat(c.weight) / 10, 1) : 0.5;
+            return [c.loc.lat, c.loc.lon, intensity];
+          });
+
+        // 3. Add Heat Layer
+        L.heatLayer(heatPoints, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 17,
+          gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+        }).addTo(map);
+
+      } catch (e) {
+        console.error("Heatmap Load Error:", e);
+      }
+    }
+
+    function resetView() {
+      map.setView([42.8689, -76.9774], 12);
+    }
+
+    document.addEventListener('DOMContentLoaded', initHeatmap);
+  </script>
+</body>
+</html>
