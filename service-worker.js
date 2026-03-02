@@ -1,8 +1,9 @@
 const CACHE_NAME = 'fishing-app-v1';
 const URLS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/gallery.html',
+  'index.html',
+  'gallery.html',
+  'leaderboard.html',
+  'heatmap.html',
   'https://cdn.tailwindcss.com',
   'https://api.open-meteo.com'
 ];

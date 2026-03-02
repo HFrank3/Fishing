@@ -2,8 +2,8 @@
   "name": "FishLog - Group Fishing Log",
   "short_name": "FishLog",
   "description": "Shared fishing catch tracker with photos, weather, and community features",
-  "start_url": "/index.html",
-  "scope": "/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
@@ -36,7 +36,7 @@
       "name": "Log a Catch",
       "short_name": "Log Catch",
       "description": "Quickly log a new fishing catch",
-      "url": "/index.html",
+      "url": "./index.html",
       "icons": [
         {
           "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231e1b4b' width='96' height='96' rx='20'/><text x='48' y='48' font-size='50' fill='white' text-anchor='middle' dy='.3em'>🎣</text></svg>",
@@ -49,7 +49,7 @@
       "name": "View Gallery",
       "short_name": "Gallery",
       "description": "View photos of catches",
-      "url": "/gallery.html",
+      "url": "./gallery.html",
       "icons": [
         {
           "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect fill='%231e1b4b' width='96' height='96' rx='20'/><text x='48' y='48' font-size='50' fill='white' text-anchor='middle' dy='.3em'>📸</text></svg>",
