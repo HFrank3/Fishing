@@ -1,19 +1,49 @@
-# Fishing
-A basic app that tracks what fish is caught and where, then using free online repositories tracks the time, barometric pressure, weather, temperature, moon phase
+🎣 FishLog - Group Fishing Tracker
 
-## Publishing
+FishLog is a Progressive Web App (PWA) designed for collaborative fishing trips. Built for anglers in the Geneva, NY area, it automatically enriches catch data with real-time environmental physics, allowing a group to track not just what they caught, but the conditions that led to success.
+🌟 Key Features
 
-- **Automatic deploy:** This repository now contains a GitHub Actions workflow that deploys the site to GitHub Pages on every push to the `main` branch.
-- **Workflow location:** [.github/workflows/pages.yml](.github/workflows/pages.yml)
-- **Site URL (after first deploy):** https://HFrank3.github.io/Fishing
+    Environmental Data Sync: Automatically fetches barometric pressure, temperature, and weather data via the Open-Meteo API.
 
-How to publish:
+    Lunar Tracking: Calculates current moon phase and illumination percentage for every catch.
 
-1. Commit and push your changes to the `main` branch.
-2. The workflow will run and publish the repository contents to GitHub Pages.
-3. If Pages doesn't appear, open the repository Settings → Pages and confirm the site: it should be managed by GitHub Actions.
+    Interactive Maps: Visualizes catch locations using Leaflet.js with a "Secret Spot" privacy toggle.
 
-Notes:
+    Live Leaderboards: Features real-time standings for Top Anglers, Species Trophies, and Overall Heavyweights.
 
-- The workflow uses the official Pages Actions to upload and deploy a static `public` artifact.
-- If you want a custom domain or icons, add them to the repository and update the manifest or Pages settings.
+    Offline Support: Powered by a Service Worker and IndexedDB, allowing you to log catches in remote areas without a signal.
+
+    Mobile Optimized: PWA support including haptic feedback (vibration) on record success and a standalone "app-like" experience.
+
+🛠️ Tech Stack
+
+    Frontend: HTML5, Tailwind CSS, Vanilla JavaScript.
+
+    Database: Firebase Realtime Database.
+
+    Maps: Leaflet.js (OpenStreetMap).
+
+    APIs: Open-Meteo (Weather/Baro).
+
+    Deployment: GitHub Actions & GitHub Pages.
+
+🚀 Publishing & Deployment
+Automatic Deploy
+
+This repository uses GitHub Actions to deploy the site to GitHub Pages on every push to the main branch.
+
+    Site URL: https://HFrank3.github.io/Fishing
+
+    Workflow: .github/workflows/static.yml
+
+How to Update
+
+    Commit and push your changes to the main branch.
+
+    The workflow will automatically build the artifact and update the live site.
+
+    Note: If the site doesn't update immediately, perform a Hard Refresh (Ctrl+F5) to clear the Service Worker cache.
+
+🔒 Security Note
+
+The application currently uses open Firebase rules for collaborative logging. For production environments, it is recommended to implement Firebase Authentication to secure user data and delete permissions.
