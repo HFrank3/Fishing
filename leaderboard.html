@@ -19,97 +19,29 @@
     </div>
   </header>
 
-<main class="max-w-md mx-auto px-4 space-y-8">
-  <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
-    <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">🏅 Species Trophies</h2>
-    <div id="speciesTrophyList" class="space-y-3">
-      <p class="text-slate-400 text-sm italic">Identifying local legends...</p>
-    </div>
-  </section>
+  <main class="max-w-md mx-auto px-4 space-y-8">
+    
+    <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+      <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">🏅 Species Trophies</h2>
+      <div id="speciesTrophyList" class="space-y-3">
+        <p class="text-slate-400 text-sm italic text-center py-4">Loading trophies...</p>
+      </div>
+    </section>
 
-  <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
-    <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">🏆 Top Anglers</h2>
-    <div id="anglerList" class="space-y-3"></div>
-  </section>
-</main>
-
-<script>
-  const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
-
-  async function loadLeaderboard() {
-    try {
-      const res = await fetch(DB_URL);
-      const data = await res.json();
-      if (!data) return;
-
-      const catches = Object.values(data);
-      
-      // --- 1. Species Specific Trophies ---
-      const trophies = {};
-      catches.forEach(c => {
-        if (!c.species || !c.weight) return;
-        const weight = parseFloat(c.weight);
-        // If species doesn't exist or this catch is heavier, update trophy
-        if (!trophies[c.species] || weight > parseFloat(trophies[c.species].weight)) {
-          trophies[c.species] = c;
-        }
-      });
-
-      const trophyHtml = Object.keys(trophies).sort().map(species => {
-        const c = trophies[species];
-        return `
-          <div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <div>
-              <p class="text-xs font-black text-indigo-600 uppercase tracking-wider">${species}</p>
-              <p class="text-sm font-bold text-slate-800">${c.name}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-lg font-black text-slate-900">${c.weight} <span class="text-xs">lbs</span></p>
-              <p class="text-[10px] text-slate-400">${c.spot || 'Secret Spot'}</p>
-            </div>
-          </div>
-        `;
-      }).join('');
-      
-      document.getElementById('speciesTrophyList').innerHTML = trophyHtml || '<p class="text-center text-slate-400">No trophy data yet.</p>';
-
-      // --- 2. Top Anglers (By Count) ---
-      const anglerCounts = {};
-      catches.forEach(c => {
-        if(c.name) anglerCounts[c.name] = (anglerCounts[c.name] || 0) + 1;
-      });
-
-      const sortedAnglers = Object.entries(anglerCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5);
-
-      document.getElementById('anglerList').innerHTML = sortedAnglers.map(([name, count], i) => `
-        <div class="flex justify-between items-center p-2">
-          <span class="font-bold text-slate-700">${i + 1}. ${name}</span>
-          <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">${count} fish</span>
-        </div>
-      `).join('');
-
-    } catch (e) {
-      console.error("Leaderboard error:", e);
-      document.getElementById('speciesTrophyList').innerHTML = "Error loading trophies.";
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', loadLeaderboard);
-</script>    <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+    <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
       <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">🏆 Top Anglers</h2>
       <div id="anglerList" class="space-y-3">
-        <p class="text-slate-400 text-sm italic">Calculating standings...</p>
+        <p class="text-slate-400 text-sm italic text-center py-4">Calculating standings...</p>
       </div>
     </section>
 
     <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
       <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">⚖️ Heavyweights</h2>
       <div id="heavyweightList" class="space-y-3">
-        <p class="text-slate-400 text-sm italic">Scanning the scales...</p>
+        <p class="text-slate-400 text-sm italic text-center py-4">Scanning the scales...</p>
       </div>
     </section>
+
   </main>
 
   <script>
@@ -118,46 +50,82 @@
     async function loadLeaderboard() {
       try {
         const res = await fetch(DB_URL);
+        if (!res.ok) throw new Error('Network error');
         const data = await res.json();
-        if (!data) return;
+        
+        if (!data) {
+          const emptyMsg = '<p class="text-center text-slate-400 py-4">No data available yet.</p>';
+          document.getElementById('speciesTrophyList').innerHTML = emptyMsg;
+          document.getElementById('anglerList').innerHTML = emptyMsg;
+          document.getElementById('heavyweightList').innerHTML = emptyMsg;
+          return;
+        }
 
         const catches = Object.values(data);
-        
-        // 1. Calculate Top Anglers (Count)
+
+        // --- 1. Species Trophy Logic ---
+        const trophies = {};
+        catches.forEach(c => {
+          if (!c.species || c.weight === undefined || c.weight === null) return;
+          const weight = parseFloat(c.weight);
+          const species = c.species.trim();
+          if (!trophies[species] || weight > parseFloat(trophies[species].weight || 0)) {
+            trophies[species] = c;
+          }
+        });
+
+        const trophyHtml = Object.keys(trophies).sort().map(species => {
+          const c = trophies[species];
+          return `
+            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div>
+                <p class="text-xs font-black text-indigo-600 uppercase tracking-wider">${species}</p>
+                <p class="text-sm font-bold text-slate-800">${c.name || 'Anonymous'}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-lg font-black text-slate-900">${c.weight} <span class="text-xs font-normal">lbs</span></p>
+                <p class="text-[10px] text-slate-400">${c.spot || 'Secret Spot'}</p>
+              </div>
+            </div>`;
+        }).join('');
+        document.getElementById('speciesTrophyList').innerHTML = trophyHtml || '<p class="text-center text-slate-400 py-4">No weights recorded yet.</p>';
+
+        // --- 2. Top Anglers Logic (By Count) ---
         const anglerCounts = {};
         catches.forEach(c => {
-          anglerCounts[c.name] = (anglerCounts[c.name] || 0) + 1;
+          const name = (c.name || 'Anonymous').trim();
+          anglerCounts[name] = (anglerCounts[name] || 0) + 1;
         });
 
         const sortedAnglers = Object.entries(anglerCounts)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 5); // Top 5
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5);
 
         document.getElementById('anglerList').innerHTML = sortedAnglers.map(([name, count], i) => `
           <div class="flex justify-between items-center p-2 ${i === 0 ? 'bg-yellow-50 rounded-lg border border-yellow-200' : ''}">
             <span class="font-bold text-slate-700">${i + 1}. ${name}</span>
             <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">${count} catches</span>
-          </div>
-        `).join('');
+          </div>`).join('');
 
-        // 2. Calculate Heavyweights (Weight)
+        // --- 3. Heavyweights Logic (Overall Weight) ---
         const heavyweights = catches
-          .filter(c => c.weight)
+          .filter(c => c.weight && !isNaN(parseFloat(c.weight)))
           .sort((a, b) => parseFloat(b.weight) - parseFloat(a.weight))
           .slice(0, 5);
 
         document.getElementById('heavyweightList').innerHTML = heavyweights.map((c, i) => `
           <div class="flex justify-between items-center p-2 ${i === 0 ? 'bg-blue-50 rounded-lg border border-blue-200' : ''}">
             <div>
-              <p class="font-bold text-slate-700">${c.species}</p>
-              <p class="text-[10px] text-slate-500 uppercase font-bold">${c.name} • ${c.spot || 'Unknown'}</p>
+              <p class="font-bold text-slate-700">${c.species || 'Unknown'}</p>
+              <p class="text-[10px] text-slate-500 uppercase font-bold">${c.name || 'Anonymous'} • ${c.spot || 'Unknown'}</p>
             </div>
-            <span class="text-lg font-black text-indigo-900">${c.weight} <span class="text-xs">lbs</span></span>
-          </div>
-        `).join('');
+            <span class="text-lg font-black text-indigo-900">${c.weight} <span class="text-xs font-normal text-indigo-700">lbs</span></span>
+          </div>`).join('');
 
       } catch (e) {
         console.error("Leaderboard error:", e);
+        const errorMsg = '<p class="text-center text-red-500 py-4">Error loading standings.</p>';
+        document.getElementById('speciesTrophyList').innerHTML = errorMsg;
       }
     }
 
