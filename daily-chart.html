@@ -3,62 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#1e1b4b" />
-  <title>FishLog - Daily Activity Chart</title>
-  
+  <title>FishLog - Weather Physics Chart</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans pb-10">
+<body class="bg-slate-100 text-slate-900 pb-10">
 
   <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
-    <h1 class="text-3xl font-bold tracking-tight">Daily Activity Chart</h1>
-    <p class="text-indigo-200 text-sm mt-1">Data-Driven Peak Times • Geneva, NY</p>
-    <div class="mt-4 flex gap-2 justify-center flex-wrap">
-      <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Log</a>
-      <a href="gallery.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Gallery</a>
-      <a href="leaderboard.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Leaders</a>
-      <a href="heatmap.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Heatmap</a>
-      <a href="daily-chart.html" class="px-4 py-2 bg-indigo-500 rounded-lg text-sm font-semibold">Chart</a>
-    </div>
+    <h1 class="text-3xl font-bold tracking-tight">Weather Analysis</h1>
+    <p class="text-indigo-200 text-sm mt-1">Pressure & Precipitation Trends • Geneva, NY</p>
   </header>
 
   <main class="max-w-4xl mx-auto px-4 space-y-6">
     
     <section class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
-      <h2 class="text-xl font-bold text-indigo-950 mb-4">Fishing Success by Hour</h2>
+      <h2 class="text-xl font-bold text-indigo-950 mb-4 text-center">Catch Success vs. Pressure Trend</h2>
       <div class="relative h-64 w-full">
-        <canvas id="hourlyChart"></canvas>
+        <canvas id="weatherChart"></canvas>
       </div>
-      <p class="text-xs text-slate-500 mt-4 italic">Based on the total number of catches recorded per hour (00:00 - 23:00).</p>
     </section>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 shadow-sm text-center">
-        <span class="text-2xl">⏲️</span>
-        <h3 class="text-xs font-bold text-indigo-400 uppercase mt-2">Peak Pressure</h3>
-        <p id="bestPressure" class="text-xl font-black text-indigo-900">Loading...</p>
+      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 text-center">
+        <h3 class="text-xs font-bold text-indigo-400 uppercase">Ideal Temp Range</h3>
+        <p id="bestTemp" class="text-xl font-black text-indigo-900">Loading...</p>
       </div>
       
-      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 shadow-sm text-center">
-        <span class="text-2xl">🌑</span>
-        <h3 class="text-xs font-bold text-blue-400 uppercase mt-2">Best Moon Phase</h3>
-        <p id="bestMoon" class="text-xl font-black text-blue-900 text-sm">Loading...</p>
+      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 text-center">
+        <h3 class="text-xs font-bold text-blue-400 uppercase">Pressure State</h3>
+        <p id="pressureTrend" class="text-xl font-black text-blue-900">Loading...</p>
       </div>
 
-      <div class="bg-purple-50 p-5 rounded-xl border border-purple-100 shadow-sm text-center">
-        <span class="text-2xl">⏰</span>
-        <h3 class="text-xs font-bold text-purple-400 uppercase mt-2">Optimal Time</h3>
-        <p id="bestTime" class="text-xl font-black text-purple-900">Loading...</p>
+      <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-white">
+        <h3 class="text-xs font-bold text-slate-400 uppercase">Precipitation Effect</h3>
+        <p id="precipStat" class="text-xl font-black">Loading...</p>
       </div>
     </div>
-
   </main>
 
   <script>
     const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
 
-    async function loadChartData() {
+    // Helper to strip units like "hPa" or "°F"
+    const toNum = (str) => str ? parseFloat(str.replace(/[^\d.-]/g, '')) : null;
+
+    async function loadWeatherData() {
       try {
         const res = await fetch(DB_URL);
         const data = await res.json();
@@ -66,75 +55,59 @@
 
         const catches = Object.values(data);
         
-        // --- 1. Process Hourly Data ---
-        const hourlyCounts = new Array(24).fill(0);
+        // --- 1. Environmental Calculations ---
+        let lowPressureCatches = 0; // "Dropping"
+        let highPressureCatches = 0; // "Rising/Steady"
+        let tempSum = 0;
+        let catchesWithTemp = 0;
+
+        // Simple threshold for Geneva, NY (Standard Baro ~1013 hPa)
         catches.forEach(c => {
-          if (c.timestamp) {
-            const hour = new Date(c.timestamp).getHours();
-            hourlyCounts[hour]++;
+          const p = toNum(c.weather?.pressure);
+          const t = toNum(c.weather?.temp);
+
+          if (p) {
+            p < 1013 ? lowPressureCatches++ : highPressureCatches++;
+          }
+          if (t) {
+            tempSum += t;
+            catchesWithTemp++;
           }
         });
 
-        // --- 2. Process Pressure & Moon Correlations ---
-        const pressureMap = {};
-        const moonMap = {};
+        // --- 2. Update UI ---
+        document.getElementById('bestTemp').textContent = catchesWithTemp > 0 
+          ? `${Math.round(tempSum/catchesWithTemp)}°F Avg` : 'N/A';
         
-        catches.forEach(c => {
-          if (c.weather && c.weather.pressure) {
-            const p = c.weather.pressure;
-            pressureMap[p] = (pressureMap[p] || 0) + 1;
-          }
-          if (c.moon) {
-            const m = c.moon.split('(')[0].trim(); // Get "Full Moon" from "Full Moon (99%)"
-            moonMap[m] = (moonMap[m] || 0) + 1;
-          }
-        });
-
-        // Find Maxes
-        const bestP = Object.keys(pressureMap).reduce((a, b) => pressureMap[a] > pressureMap[b] ? a : b, 'N/A');
-        const bestM = Object.keys(moonMap).reduce((a, b) => moonMap[a] > moonMap[b] ? a : b, 'N/A');
-        const peakHour = hourlyCounts.indexOf(Math.max(...hourlyCounts));
-        const peakTimeStr = peakHour > 12 ? `${peakHour-12} PM` : peakHour === 12 ? '12 PM' : peakHour === 0 ? '12 AM' : `${peakHour} AM`;
-
-        // Update UI
-        document.getElementById('bestPressure').textContent = bestP;
-        document.getElementById('bestMoon').textContent = bestM;
-        document.getElementById('bestTime').textContent = peakTimeStr;
+        document.getElementById('pressureTrend').textContent = lowPressureCatches > highPressureCatches 
+          ? 'Falling Baro 📉' : 'Steady/Rising 📈';
+        
+        document.getElementById('precipStat').textContent = "Active Feed"; // Placeholder for logic expansion
 
         // --- 3. Render Chart ---
-        const ctx = document.getElementById('hourlyChart').getContext('2d');
+        const ctx = document.getElementById('weatherChart').getContext('2d');
+        
         new Chart(ctx, {
-          type: 'line',
+          type: 'bar',
           data: {
-            labels: hourlyCounts.map((_, i) => i === 12 ? '12pm' : i === 0 ? '12am' : i > 12 ? (i-12)+'pm' : i+'am'),
+            labels: ['Falling Pressure (<1013hPa)', 'Rising/Steady (>1013hPa)'],
             datasets: [{
-              label: 'Number of Catches',
-              data: hourlyCounts,
-              borderColor: '#4f46e5',
-              backgroundColor: 'rgba(79, 70, 229, 0.1)',
-              fill: true,
-              tension: 0.4,
-              pointRadius: 4,
-              pointBackgroundColor: '#4f46e5'
+              label: 'Catches',
+              data: [lowPressureCatches, highPressureCatches],
+              backgroundColor: ['#6366f1', '#94a3b8'],
+              borderRadius: 8
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
-              y: { beginAtZero: true, grid: { display: false } },
-              x: { grid: { display: false } }
-            },
             plugins: { legend: { display: false } }
           }
         });
 
-      } catch (e) {
-        console.error("Chart load error:", e);
-      }
+      } catch (e) { console.error(e); }
     }
-
-    document.addEventListener('DOMContentLoaded', loadChartData);
+    document.addEventListener('DOMContentLoaded', loadWeatherData);
   </script>
 </body>
 </html>
