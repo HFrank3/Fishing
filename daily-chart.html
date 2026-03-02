@@ -3,111 +3,202 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FishLog - Weather Physics Chart</title>
+  <meta name="theme-color" content="#1e1b4b" />
+  <title>FishLog - Daily Chart & Forecast</title>
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 pb-10">
+<body class="bg-slate-100 text-slate-900 font-sans pb-10">
 
   <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
-    <h1 class="text-3xl font-bold tracking-tight">Weather Analysis</h1>
-    <p class="text-indigo-200 text-sm mt-1">Pressure & Precipitation Trends • Geneva, NY</p>
+    <h1 class="text-3xl font-bold tracking-tight">Hourly Forecast & Trends</h1>
+    <p class="text-indigo-200 text-sm mt-1">Bite Probability & Physics • Geneva, NY</p>
+    
+    <div class="mt-4 flex gap-2 justify-center flex-wrap">
+      <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Log</a>
+      <a href="gallery.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Gallery</a>
+      <a href="leaderboard.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Leaders</a>
+      <a href="heatmap.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Heatmap</a>
+      <a href="daily-chart.html" class="px-4 py-2 bg-indigo-500 rounded-lg text-sm font-semibold">Chart</a>
+    </div>
   </header>
 
   <main class="max-w-4xl mx-auto px-4 space-y-6">
     
     <section class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
-      <h2 class="text-xl font-bold text-indigo-950 mb-4 text-center">Catch Success vs. Pressure Trend</h2>
+      <h2 class="text-xl font-bold text-indigo-950 mb-2">Hourly Bite Probability (%)</h2>
+      <p class="text-xs text-slate-500 mb-4">Calculated using forecasted barometric drops, temperature, and moon phase.</p>
       <div class="relative h-64 w-full">
-        <canvas id="weatherChart"></canvas>
+        <canvas id="forecastChart"></canvas>
       </div>
     </section>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 text-center">
-        <h3 class="text-xs font-bold text-indigo-400 uppercase">Ideal Temp Range</h3>
-        <p id="bestTemp" class="text-xl font-black text-indigo-900">Loading...</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Current Baro</p>
+        <p id="trend-baro" class="text-lg font-bold text-indigo-900">--</p>
       </div>
-      
-      <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 text-center">
-        <h3 class="text-xs font-bold text-blue-400 uppercase">Pressure State</h3>
-        <p id="pressureTrend" class="text-xl font-black text-blue-900">Loading...</p>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Current Moon</p>
+        <p id="trend-moon" class="text-sm font-bold text-indigo-900 mt-1 truncate">--</p>
       </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Next Precip</p>
+        <p id="trend-precip" class="text-lg font-bold text-indigo-900">--</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Current Temp</p>
+        <p id="trend-temp" class="text-lg font-bold text-indigo-900">--</p>
+      </div>
+    </div>
 
-      <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-white">
-        <h3 class="text-xs font-bold text-slate-400 uppercase">Precipitation Effect</h3>
-        <p id="precipStat" class="text-xl font-black">Loading...</p>
+    <div class="mt-8 border-t border-slate-200 pt-6">
+      <h2 class="text-lg font-bold text-indigo-950 mb-4 px-1">Historical Group Averages</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 text-center flex justify-between items-center">
+          <div class="text-left">
+            <h3 class="text-xs font-bold text-indigo-400 uppercase">Ideal Catch Temp</h3>
+            <p class="text-[10px] text-indigo-300">Avg temp during successful catches</p>
+          </div>
+          <p id="bestTemp" class="text-2xl font-black text-indigo-900">--</p>
+        </div>
+        
+        <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 text-center flex justify-between items-center">
+          <div class="text-left">
+            <h3 class="text-xs font-bold text-blue-400 uppercase">Pressure State</h3>
+            <p class="text-[10px] text-blue-300">Majority of catches occurred during</p>
+          </div>
+          <p id="pressureTrend" class="text-xl font-black text-blue-900">--</p>
+        </div>
       </div>
     </div>
   </main>
 
   <script>
     const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+    const LAT = 42.8689, LON = -76.9774; // Geneva, NY
 
-    // Helper to strip units like "hPa" or "°F"
+    // Helper to strip units
     const toNum = (str) => str ? parseFloat(str.replace(/[^\d.-]/g, '')) : null;
 
-    async function loadWeatherData() {
+    // Moon Phase Calculator
+    function getMoonPhase(date) {
+      const synodicMonth = 29.530588853;
+      const refNewMoon = new Date("2000-01-06T18:14:00Z");
+      const diffDays = (date.getTime() - refNewMoon.getTime()) / (1000 * 60 * 60 * 24);
+      const phase = (diffDays / synodicMonth) % 1;
+      const normPhase = phase < 0 ? phase + 1 : phase;
+      
+      if (normPhase > 0.96 || normPhase < 0.04) return "New Moon 🌑";
+      if (normPhase > 0.46 && normPhase < 0.54) return "Full Moon 🌕";
+      if (normPhase < 0.50) return "Waxing Crescent 🌒";
+      return "Waning Crescent 🌘";
+    }
+
+    // Probability Logic
+    function calculateBiteProbability(hourData, prevHourData) {
+      let score = 30; // Base probability
+
+      // 1. Barometric Pressure Drop (Huge trigger)
+      if (prevHourData && hourData.pressure < prevHourData.pressure) score += 35;
+      
+      // 2. Precipitation (Light rain 0.1-0.5 is ideal)
+      if (hourData.precip > 0 && hourData.precip < 0.5) score += 20;
+
+      // 3. Temperature (Ideal 55-75°F)
+      if (hourData.temp >= 55 && hourData.temp <= 75) score += 15;
+
+      // 4. Moon Phase Bonus
+      if (hourData.moon.includes("Full") || hourData.moon.includes("New")) score += 20;
+
+      return Math.min(score, 100);
+    }
+
+    async function initDashboard() {
       try {
-        const res = await fetch(DB_URL);
-        const data = await res.json();
-        if (!data) return;
+        // --- 1. Fetch Forecast ---
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure&temperature_unit=fahrenheit&forecast_days=2`;
+        const forecastRes = await fetch(forecastUrl);
+        const forecastData = await forecastRes.json();
 
-        const catches = Object.values(data);
-        
-        // --- 1. Environmental Calculations ---
-        let lowPressureCatches = 0; // "Dropping"
-        let highPressureCatches = 0; // "Rising/Steady"
-        let tempSum = 0;
-        let catchesWithTemp = 0;
+        const labels = [];
+        const probabilities = [];
+        const currentMoon = getMoonPhase(new Date());
 
-        // Simple threshold for Geneva, NY (Standard Baro ~1013 hPa)
-        catches.forEach(c => {
-          const p = toNum(c.weather?.pressure);
-          const t = toNum(c.weather?.temp);
+        for (let i = 1; i < 48; i++) {
+          const hour = {
+            temp: forecastData.hourly.temperature_2m[i],
+            pressure: forecastData.hourly.surface_pressure[i],
+            precip: forecastData.hourly.precipitation[i],
+            moon: getMoonPhase(new Date(forecastData.hourly.time[i] * 1000))
+          };
+          const prev = { pressure: forecastData.hourly.surface_pressure[i-1] };
+          
+          const prob = calculateBiteProbability(hour, prev);
+          
+          let dateObj = new Date(forecastData.hourly.time[i] * 1000);
+          let timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit'});
+          if(i === 1 || dateObj.getHours() === 0) timeStr = dateObj.toLocaleDateString('en-US', {weekday: 'short'}) + ' ' + timeStr;
+          
+          labels.push(timeStr);
+          probabilities.push(prob);
+        }
 
-          if (p) {
-            p < 1013 ? lowPressureCatches++ : highPressureCatches++;
-          }
-          if (t) {
-            tempSum += t;
-            catchesWithTemp++;
-          }
-        });
-
-        // --- 2. Update UI ---
-        document.getElementById('bestTemp').textContent = catchesWithTemp > 0 
-          ? `${Math.round(tempSum/catchesWithTemp)}°F Avg` : 'N/A';
-        
-        document.getElementById('pressureTrend').textContent = lowPressureCatches > highPressureCatches 
-          ? 'Falling Baro 📉' : 'Steady/Rising 📈';
-        
-        document.getElementById('precipStat').textContent = "Active Feed"; // Placeholder for logic expansion
-
-        // --- 3. Render Chart ---
-        const ctx = document.getElementById('weatherChart').getContext('2d');
-        
-        new Chart(ctx, {
-          type: 'bar',
+        // --- 2. Render Hourly Chart ---
+        new Chart(document.getElementById('forecastChart'), {
+          type: 'line',
           data: {
-            labels: ['Falling Pressure (<1013hPa)', 'Rising/Steady (>1013hPa)'],
+            labels: labels,
             datasets: [{
-              label: 'Catches',
-              data: [lowPressureCatches, highPressureCatches],
-              backgroundColor: ['#6366f1', '#94a3b8'],
-              borderRadius: 8
+              label: 'Bite Probability %',
+              data: probabilities,
+              borderColor: '#4f46e5',
+              backgroundColor: 'rgba(79, 70, 229, 0.2)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 2
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            scales: { y: { min: 0, max: 100 } },
             plugins: { legend: { display: false } }
           }
         });
 
-      } catch (e) { console.error(e); }
+        // --- 3. Update Current Forecast Metrics ---
+        document.getElementById('trend-baro').innerText = forecastData.hourly.surface_pressure[1] < forecastData.hourly.surface_pressure[0] ? "Falling 📉" : "Stable 📈";
+        document.getElementById('trend-temp').innerText = `${Math.round(forecastData.hourly.temperature_2m[0])}°F`;
+        document.getElementById('trend-precip').innerText = forecastData.hourly.precipitation.slice(0,12).some(p => p > 0) ? "Soon 🌧️" : "Clear ☀️";
+        document.getElementById('trend-moon').innerText = currentMoon;
+
+        // --- 4. Fetch & Update Historical Firebase Data ---
+        const dbRes = await fetch(DB_URL);
+        const dbData = await dbRes.json();
+        
+        if (dbData) {
+          const catches = Object.values(dbData);
+          let dropCount = 0, riseCount = 0, tempSum = 0, tempCount = 0;
+
+          catches.forEach(c => {
+            const p = toNum(c.weather?.pressure);
+            const t = toNum(c.weather?.temp);
+            if (p) p < 1013 ? dropCount++ : riseCount++;
+            if (t) { tempSum += t; tempCount++; }
+          });
+
+          document.getElementById('bestTemp').textContent = tempCount > 0 ? `${Math.round(tempSum/tempCount)}°F` : 'N/A';
+          document.getElementById('pressureTrend').innerHTML = dropCount > riseCount ? 'Falling Baro <span class="text-sm">📉</span>' : 'Steady/Rising <span class="text-sm">📈</span>';
+        }
+
+      } catch (e) {
+        console.error("Dashboard Error:", e);
+      }
     }
-    document.addEventListener('DOMContentLoaded', loadWeatherData);
+
+    document.addEventListener('DOMContentLoaded', initDashboard);
   </script>
 </body>
 </html>
