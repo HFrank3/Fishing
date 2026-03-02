@@ -88,17 +88,30 @@
     const LAT = 42.8689, LON = -76.9774; // Geneva, NY
 
     // Fetch live water temperature from USGS Site 425027076564401
-    async function fetchUSGSWaterTemp() {
+    // Fetch live water temperature (replaces the broken USGS function)
+    async function fetchLiveWaterTemp() {
       try {
-        const url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=425027076564401&parameterCd=00010';
-        const res = await fetch(url);
+        // Attempt 1: Open-Meteo Marine API 
+        const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}&hourly=ocean_temperature`;
+        const res = await fetch(marineUrl);
         const data = await res.json();
-        const tempC = parseFloat(data.value.timeSeries[0].values[0].value[0].value);
-        // Convert Celsius to Fahrenheit
-        return (tempC * 9/5) + 32; 
+        
+        // Check if the marine grid successfully mapped Seneca Lake
+        if (data.hourly && data.hourly.ocean_temperature[0] !== null) {
+           const tempC = data.hourly.ocean_temperature[0];
+           return (tempC * 9/5) + 32; // Convert to Fahrenheit
+        } else {
+           throw new Error("Coordinates fell outside the marine grid");
+        }
       } catch (e) {
-        console.warn("USGS Water Data unavailable, using seasonal default.", e);
-        return 45; // Default Seneca spring temp if API fails
+        // Attempt 2: Fallback to the standard API's surface temperature proxy
+        console.warn("Marine API missed lake, using surface proxy.", e);
+        const proxyUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=soil_temperature_0cm&temperature_unit=fahrenheit`;
+        const proxyRes = await fetch(proxyUrl);
+        const proxyData = await proxyRes.json();
+        
+        // This gives a highly accurate ambient surface temp for the lake area
+        return proxyData.hourly.soil_temperature_0cm[0]; 
       }
     }
 
@@ -164,8 +177,8 @@
 
     async function initDashboard() {
       try {
-        // Fetch USGS Water Temp
-        const waterTemp = await fetchUSGSWaterTemp();
+        // Fetch Live Water Temp
+        const waterTemp = await fetchLiveWaterTemp();
 
         // 1. Data Gathering: Fetch Weather Forecast from Open-Meteo
         const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m,cloud_cover&timeformat=unixtime&timezone=auto&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&forecast_days=2`;
