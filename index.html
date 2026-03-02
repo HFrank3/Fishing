@@ -662,7 +662,6 @@ function renderUI() {
         localStorage.setItem('currentUser', name);
 
         const loc = await getGPS();
-        const weather = await fetchWeather(loc?.lat, loc?.lon);
         // Grabs custom time if set, otherwise uses current time
         const timeInput = document.getElementById('catchTime').value;
         const timestamp = timeInput ? new Date(timeInput).getTime() : Date.now();
