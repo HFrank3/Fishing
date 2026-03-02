@@ -53,8 +53,8 @@
         <datalist id="speciesList"></datalist>
       </div>
       <div>
-        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lure / Bait Used</label>
-        <input type="text" id="lure" list="lureList" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lure / Bait Used (Optional)</label>
+        <input type="text" id="lure" list="lureList" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
         <datalist id="lureList"></datalist>
       </div>
       <div class="grid grid-cols-2 gap-3">
@@ -515,7 +515,7 @@ function renderUI() {
           <div class="flex justify-between items-start mb-2">
             <div>
               <h3 class="text-lg font-bold text-indigo-950">${item.species}</h3>
-              <p class="text-sm text-slate-600 font-medium">✨ ${item.lure}</p>
+              ${item.lure ? `<p class="text-sm text-slate-600 font-medium">✨ ${item.lure}</p>` : ''}
               <p class="text-xs text-slate-500 mt-1">🎣 ${item.name}${item.spot ? ` • ${item.spot}` : ''}</p>
             </div>
             <span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">
@@ -559,8 +559,8 @@ function renderUI() {
 
         <div class="grid grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-lg">
           <div><span class="text-xs font-bold text-slate-500 uppercase">Species</span><p class="text-lg font-bold">${catch_.species}</p></div>
-          <div><span class="text-xs font-bold text-slate-500 uppercase">Lure</span><p class="text-lg font-bold">${catch_.lure}</p></div>
-          ${catch_.weight ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Weight</span><p class="text-lg font-bold">${catch_.weight} lbs</p></div>` : ''}
+          
+          ${catch_.weight ? `${catch_.lure ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Lure</span><p class="text-lg font-bold">${catch_.lure}</p></div>` : ''}<div><span class="text-xs font-bold text-slate-500 uppercase">Weight</span><p class="text-lg font-bold">${catch_.weight} lbs</p></div>` : ''}
           ${catch_.length ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Length</span><p class="text-lg font-bold">${catch_.length} in</p></div>` : ''}
           ${catch_.spot ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Spot</span><p class="text-lg font-bold">${catch_.spot}</p></div>` : ''}
           <div><span class="text-xs font-bold text-slate-500 uppercase">Time of Day</span><p class="text-lg font-bold">${getTimeOfDay(catch_.timestamp)}</p></div>
