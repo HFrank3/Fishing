@@ -118,26 +118,50 @@
       renderGallery();
     }
 
-    async function uploadToImgBB(file) {
-      try {
-        const formData = new FormData();
-        formData.append('image', file);
+    async function compressImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Resize if larger than 1200px
+            if (width > 1200) {
+              height *= 1200 / width;
+              width = 1200;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
-        const res = await fetch('https://api.imgbb.com/1/upload?key=d997c7c8fb8d66be9a9d19fa97b1eac9', {
-          method: 'POST',
-          body: formData
+    async function uploadToFirebase(compressedDataUrl) {
+      try {
+        const timestamp = Date.now();
+        const fileName = `photo_${timestamp}`;
+        const dbUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/photoImages/${fileName}.json`;
+        
+        // Store the base64 image in Firebase
+        const response = await fetch(dbUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: compressedDataUrl })
         });
 
-        const data = await res.json();
-        
-        if (!data.success) {
-          console.error('ImgBB error:', data);
-          throw new Error(data.error?.message || 'Upload failed');
-        }
-        
-        return data.data.url;
+        if (!response.ok) throw new Error('Upload failed');
+        return `data:image/jpeg;base64,${compressedDataUrl.split(',')[1]}`;
       } catch (e) {
-        console.error("ImgBB upload error:", e);
+        console.error("Firebase upload error:", e);
         return null;
       }
     }
@@ -189,8 +213,8 @@
       const spinner = document.getElementById('loadingSpinner');
       const file = document.getElementById('photoFile').files[0];
 
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Photo must be smaller than 5MB');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Photo must be smaller than 10MB');
         return;
       }
 
@@ -200,31 +224,33 @@
       const name = document.getElementById('name').value;
       localStorage.setItem('currentUser', name);
 
-      const imageUrl = await uploadToImgBB(file);
-      
-      if (!imageUrl) {
-        alert('Upload failed. Check your internet connection and try again.');
-        console.log('Upload failed - check browser console for details');
+      try {
+        const compressed = await compressImage(file);
+        const imageUrl = await uploadToFirebase(compressed);
+        
+        if (!imageUrl) {
+          throw new Error('Upload failed');
+        }
+
+        const timestamp = Date.now();
+
+        await savePhotoMetadata({
+          name,
+          description: document.getElementById('description').value,
+          imageUrl,
+          timestamp
+        });
+
+        e.target.reset();
+        document.getElementById('name').value = name;
+        await renderGallery();
+      } catch (error) {
+        console.error('Upload error:', error);
+        alert('Upload failed. Please try again.');
+      } finally {
         btn.disabled = false;
         spinner.classList.add('hidden');
-        return;
       }
-
-      const timestamp = Date.now();
-
-      await savePhotoMetadata({
-        name,
-        description: document.getElementById('description').value,
-        imageUrl,
-        timestamp
-      });
-
-      e.target.reset();
-      document.getElementById('name').value = name;
-      await renderGallery();
-      
-      btn.disabled = false;
-      spinner.classList.add('hidden');
     });
 
     // Initial Load
