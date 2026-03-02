@@ -28,7 +28,7 @@
     
     <section class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
       <h2 class="text-xl font-bold text-indigo-950 mb-2">Hourly Bite Probability (%)</h2>
-      <p class="text-xs text-slate-500 mb-4">Calculated using forecasted barometric drops, temperature, and moon phase.</p>
+      <p class="text-xs text-slate-500 mb-4">Calculated using forecasted barometric drops, temperature, precipitation, and moon phase.</p>
       <div class="relative h-64 w-full">
         <canvas id="forecastChart"></canvas>
       </div>
@@ -53,21 +53,44 @@
       </div>
     </div>
 
+    <section class="bg-indigo-50 p-6 rounded-xl border border-indigo-100 shadow-sm mt-4">
+      <h2 class="text-lg font-bold text-indigo-950 mb-3">How We Calculate the Bite %</h2>
+      <p class="text-xs text-indigo-800 mb-4">Every hour starts with a baseline probability. As environmental conditions align to trigger feeding behavior, the percentage increases up to a maximum of 100%.</p>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm text-indigo-900">
+        <div class="flex justify-between border-b border-indigo-200 pb-1">
+          <span>Base Probability:</span> <span class="font-bold">10%</span>
+        </div>
+        <div class="flex justify-between border-b border-indigo-200 pb-1">
+          <span>Falling Barometric Pressure:</span> <span class="font-bold text-green-600">+35%</span>
+        </div>
+        <div class="flex justify-between border-b border-indigo-200 pb-1">
+          <span>Full or New Moon:</span> <span class="font-bold text-green-600">+20%</span>
+        </div>
+        <div class="flex justify-between border-b border-indigo-200 pb-1">
+          <span>Light Rain (0.1 - 0.5 in):</span> <span class="font-bold text-green-600">+20%</span>
+        </div>
+        <div class="flex justify-between border-b border-indigo-200 pb-1 md:col-span-2">
+          <span>Ideal Temperature (55°F - 75°F):</span> <span class="font-bold text-green-600">+15%</span>
+        </div>
+      </div>
+    </section>
+
     <div class="mt-8 border-t border-slate-200 pt-6">
       <h2 class="text-lg font-bold text-indigo-950 mb-4 px-1">Historical Group Averages</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 text-center flex justify-between items-center">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center flex justify-between items-center">
           <div class="text-left">
             <h3 class="text-xs font-bold text-indigo-400 uppercase">Ideal Catch Temp</h3>
-            <p class="text-[10px] text-indigo-300">Avg temp during successful catches</p>
+            <p class="text-[10px] text-slate-400">Avg temp during successful catches</p>
           </div>
           <p id="bestTemp" class="text-2xl font-black text-indigo-900">--</p>
         </div>
         
-        <div class="bg-blue-50 p-5 rounded-xl border border-blue-100 text-center flex justify-between items-center">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center flex justify-between items-center">
           <div class="text-left">
             <h3 class="text-xs font-bold text-blue-400 uppercase">Pressure State</h3>
-            <p class="text-[10px] text-blue-300">Majority of catches occurred during</p>
+            <p class="text-[10px] text-slate-400">Majority of catches occurred during</p>
           </div>
           <p id="pressureTrend" class="text-xl font-black text-blue-900">--</p>
         </div>
@@ -98,7 +121,8 @@
 
     // Probability Logic
     function calculateBiteProbability(hourData, prevHourData) {
-      let score = 30; // Base probability
+      // BASE DROPPED TO 10%
+      let score = 10; 
 
       // 1. Barometric Pressure Drop (Huge trigger)
       if (prevHourData && hourData.pressure < prevHourData.pressure) score += 35;
@@ -117,7 +141,7 @@
 
     async function initDashboard() {
       try {
-        // --- 1. Fetch Forecast ---
+        // Fetch Forecast (Note: timeformat=unixtime is included here to fix your Date error!)
         const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit&forecast_days=2`;
         const forecastRes = await fetch(forecastUrl);
         const forecastData = await forecastRes.json();
@@ -145,7 +169,7 @@
           probabilities.push(prob);
         }
 
-        // --- 2. Render Hourly Chart ---
+        // Render Hourly Chart
         new Chart(document.getElementById('forecastChart'), {
           type: 'line',
           data: {
@@ -168,13 +192,13 @@
           }
         });
 
-        // --- 3. Update Current Forecast Metrics ---
+        // Update Current Forecast Metrics
         document.getElementById('trend-baro').innerText = forecastData.hourly.surface_pressure[1] < forecastData.hourly.surface_pressure[0] ? "Falling 📉" : "Stable 📈";
         document.getElementById('trend-temp').innerText = `${Math.round(forecastData.hourly.temperature_2m[0])}°F`;
         document.getElementById('trend-precip').innerText = forecastData.hourly.precipitation.slice(0,12).some(p => p > 0) ? "Soon 🌧️" : "Clear ☀️";
         document.getElementById('trend-moon').innerText = currentMoon;
 
-        // --- 4. Fetch & Update Historical Firebase Data ---
+        // Fetch & Update Historical Firebase Data
         const dbRes = await fetch(DB_URL);
         const dbData = await dbRes.json();
         
