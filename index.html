@@ -374,9 +374,10 @@ async function uploadPhotoToFirebase(compressedDataUrl) {
       try {
         const timestamp = Date.now();
         const fileName = `photo_${timestamp}`;
+        // Pointing to Realtime Database
         const dbUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/photoImages/${fileName}.json`;
         
-        // Upload the base64 string to Realtime Database
+        // Upload the base64 string directly
         const response = await fetch(dbUrl, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -385,35 +386,8 @@ async function uploadPhotoToFirebase(compressedDataUrl) {
 
         if (!response.ok) throw new Error('Upload failed');
         
-        // Return the base64 string so it can be saved in the catch log
+        // Return the base64 string so the form can save it to the catch log
         return compressedDataUrl;
-      } catch (e) {
-        console.error("Photo upload error:", e);
-        return null;
-      }
-      
-    }      try {
-        // Fetch the data URL to convert back to a Blob
-        const res = await fetch(compressedDataUrl);
-        const blob = await res.blob();
-        
-        const timestamp = Date.now();
-        const fileName = `photo_${timestamp}.jpg`;
-        
-        // Use Firebase Storage REST API
-        const storageUrl = `https://firebasestorage.googleapis.com/v0/b/fishing-app-4b031.appspot.com/o/${fileName}`;
-        
-        const response = await fetch(storageUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'image/jpeg' },
-          body: blob
-        });
-
-        if (!response.ok) throw new Error('Upload failed');
-        
-        const data = await response.json();
-        // Construct the public download URL
-        return `${storageUrl}?alt=media&token=${data.downloadTokens}`;
       } catch (e) {
         console.error("Photo upload error:", e);
         return null;
@@ -455,14 +429,17 @@ async function uploadPhotoToFirebase(compressedDataUrl) {
     }
 
     // --- UI RENDERING ---
-    function renderUI() {
+function renderUI() {
       const list = document.getElementById('catchList');
       const currentUser = getCurrentUser();
 
-      // Filter instantly using the local array
+      // NEW SAFE FILTER: Defaults to an empty string if old data is missing
       const filtered = allCatches.filter(item => {
-        const speciesMatch = !filterSpecies || item.species.toLowerCase().includes(filterSpecies.toLowerCase());
-        const userMatch = !filterUser || item.name.toLowerCase().includes(filterUser.toLowerCase());
+        const safeSpecies = item.species || '';
+        const safeName = item.name || '';
+        
+        const speciesMatch = !filterSpecies || safeSpecies.toLowerCase().includes(filterSpecies.toLowerCase());
+        const userMatch = !filterUser || safeName.toLowerCase().includes(filterUser.toLowerCase());
         return speciesMatch && userMatch;
       });
 
@@ -470,7 +447,6 @@ async function uploadPhotoToFirebase(compressedDataUrl) {
         list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches found.</div>';
         return;
       }
-
       const stats = calculateStats(filtered);
 
       updateDatalist('speciesList', allCatches.map(c => c.species));
