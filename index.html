@@ -68,6 +68,11 @@
         </div>
       </div>
       <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Date & Time Caught</label>
+        <input type="datetime-local" id="catchTime" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <p class="text-[10px] text-slate-500 mt-1">Leave blank for "Right Now". Pick a past date for historical data.</p>
+      </div>
+      <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Fishing Spot</label>
         <input type="text" id="spot" list="spotList" placeholder="e.g. North Bay" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
         <datalist id="spotList"></datalist>
@@ -325,21 +330,55 @@ async function loadCatches() {
       return `Waning Crescent 🌘 (${pct}%)`;
     }
 
-    async function fetchWeather(lat, lon) {
+    async function fetchWeather(lat, lon, timestamp) {
       if (!lat || !lon) return { temp: 'N/A', pressure: 'N/A', hum: 'N/A' };
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+      
+      const catchDate = new Date(timestamp);
+      
+      // Format to local YYYY-MM-DD to prevent timezone shifting
+      const year = catchDate.getFullYear();
+      const month = String(catchDate.getMonth() + 1).padStart(2, '0');
+      const day = String(catchDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const now = new Date();
+      const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      let url;
+      if (dateStr === nowStr) {
+        // Use standard forecast for today
+        url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+      } else {
+        // Use historical API for past catches
+        url = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${dateStr}&end_date=${dateStr}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+      }
+
       try {
         const res = await fetch(url);
         const data = await res.json();
-        const now = Math.floor(Date.now() / 1000);
-        let idx = data.hourly.time.findIndex(t => t >= now);
-        if (idx === -1) idx = 0;
+        
+        // Find the closest hour to when the fish was caught
+        const targetUnix = Math.floor(timestamp / 1000);
+        let closestIdx = 0;
+        let minDiff = Infinity;
+        
+        data.hourly.time.forEach((t, idx) => {
+          const diff = Math.abs(t - targetUnix);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestIdx = idx;
+          }
+        });
+
         return {
-          temp: `${Math.round(data.hourly.temperature_2m[idx])}°F`,
-          pressure: `${Math.round(data.hourly.surface_pressure[idx])} hPa`,
-          hum: `${data.hourly.relative_humidity_2m[idx]}%`
+          temp: `${Math.round(data.hourly.temperature_2m[closestIdx])}°F`,
+          pressure: `${Math.round(data.hourly.surface_pressure[closestIdx])} hPa`,
+          hum: `${data.hourly.relative_humidity_2m[closestIdx]}%`
         };
-      } catch (e) { return { temp: 'Err', pressure: 'Err', hum: 'Err' }; }
+      } catch (e) { 
+        console.error("Weather Error:", e);
+        return { temp: 'Err', pressure: 'Err', hum: 'Err' }; 
+      }
     }
 
     function getGPS() {
@@ -624,8 +663,13 @@ function renderUI() {
 
         const loc = await getGPS();
         const weather = await fetchWeather(loc?.lat, loc?.lon);
-        const timestamp = Date.now();
+        // Grabs custom time if set, otherwise uses current time
+        const timeInput = document.getElementById('catchTime').value;
+        const timestamp = timeInput ? new Date(timeInput).getTime() : Date.now();
+        
         const moon = getMoonDetails(new Date(timestamp));
+        // Pass the timestamp to our new weather function
+        const weather = await fetchWeather(loc?.lat, loc?.lon, timestamp);
 
         let photoUrl = null;
         if (photoFile) {
