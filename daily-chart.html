@@ -118,7 +118,7 @@
     async function initDashboard() {
       try {
         // --- 1. Fetch Forecast ---
-        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure&temperature_unit=fahrenheit&forecast_days=2`;
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit&forecast_days=2`;
         const forecastRes = await fetch(forecastUrl);
         const forecastData = await forecastRes.json();
 
