@@ -16,6 +16,7 @@
   <style>
     #catchList { max-height: 60vh; overflow-y: auto; }
     .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; }
+    .fade-out { opacity: 0; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
@@ -41,11 +42,13 @@
       </div>
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Target Species</label>
-        <input type="text" id="species" placeholder="e.g. Lake Trout" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        <input type="text" id="species" list="speciesList" placeholder="e.g. Lake Trout" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        <datalist id="speciesList"></datalist>
       </div>
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lure / Bait Used</label>
-        <input type="text" id="lure" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        <input type="text" id="lure" list="lureList" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        <datalist id="lureList"></datalist>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -59,8 +62,13 @@
       </div>
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Fishing Spot</label>
-        <input type="text" id="spot" placeholder="e.g. North Bay" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <input type="text" id="spot" list="spotList" placeholder="e.g. North Bay" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+        <datalist id="spotList"></datalist>
       </div>
+    </form>
+
+    <!-- toast container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-2">Upload Photo (Optional)</label>
         <input type="file" id="photoFile" accept="image/*" class="w-full p-3 rounded-lg border border-slate-300 cursor-pointer file:bg-indigo-600 file:text-white file:px-4 file:py-2 file:rounded file:border-0 file:cursor-pointer" />
@@ -115,6 +123,25 @@
       if (hour >= 12 && hour < 17) return 'Afternoon';
       if (hour >= 17 && hour < 21) return 'Evening';
       return 'Night';
+    }
+
+    // --- UI UTILS ---
+    function showToast(message, duration = 3000) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.className = 'bg-indigo-600 text-white px-4 py-2 rounded shadow-lg animate-in fade-in duration-200';
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => container.removeChild(toast), 500);
+      }, duration);
+    }
+
+    function updateDatalist(id, items) {
+      const list = document.getElementById(id);
+      const unique = [...new Set(items.filter(Boolean))];
+      list.innerHTML = unique.map(v => `<option value="${v}"></option>`).join('');
     }
 
     // --- OFFLINE STORAGE ---
@@ -263,6 +290,7 @@
       const deleteUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/catches/${id}.json`;
       await fetch(deleteUrl, { method: 'DELETE' });
       renderUI();
+      showToast('Catch deleted');
     }
 
     // --- PHYSICS & WEATHER LOGIC ---
@@ -404,6 +432,11 @@
       }
 
       const stats = calculateStats(filtered);
+
+      // update suggestion lists based on all catches
+      updateDatalist('speciesList', allCatches.map(c => c.species));
+      updateDatalist('lureList', allCatches.map(c => c.lure));
+      updateDatalist('spotList', allCatches.map(c => c.spot));
 
       list.innerHTML = filtered.map(item => `
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in duration-500 cursor-pointer hover:shadow-md transition" onclick="showCatchModal('${item.id}')">
@@ -547,13 +580,21 @@
           }
         }
 
+        const speciesVal = document.getElementById('species').value;
+        const lureVal = document.getElementById('lure').value;
+        const spotVal = document.getElementById('spot').value;
+        // store last used
+        localStorage.setItem('last_species', speciesVal);
+        localStorage.setItem('last_lure', lureVal);
+        localStorage.setItem('last_spot', spotVal);
+
         await saveCatch({
           name,
-          species: document.getElementById('species').value,
-          lure: document.getElementById('lure').value,
+          species: speciesVal,
+          lure: lureVal,
           weight: document.getElementById('weight').value || null,
           length: document.getElementById('length').value || null,
-          spot: document.getElementById('spot').value || null,
+          spot: spotVal || null,
           photo: photoUrl,
           loc, weather, moon, timestamp
         });
@@ -561,8 +602,9 @@
         e.target.reset();
         document.getElementById('name').value = name;
         await renderUI();
+        showToast('Catch recorded!');
       } catch (error) {
-        alert(error.message || 'Error saving catch. Please try again.');
+        showToast(error.message || 'Error saving catch. Please try again.');
         console.error('Form submission error:', error);
       } finally {
         btn.disabled = false;
@@ -595,6 +637,11 @@
       if (savedName) {
         document.getElementById('name').value = savedName;
       }
+      // restore last-used fields
+      ['species','lure','spot'].forEach(field => {
+        const val = localStorage.getItem('last_'+field);
+        if (val) document.getElementById(field).value = val;
+      });
       renderUI();
     });
 
@@ -617,6 +664,7 @@
     window.addEventListener('online', () => {
       isOnline = true;
       document.getElementById('offlineIndicator').classList.add('hidden');
+      showToast('Back online – syncing catches');
       renderUI();
       syncOfflineCatches();
       if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker.controller) {
@@ -627,6 +675,7 @@
     window.addEventListener('offline', () => {
       isOnline = false;
       document.getElementById('offlineIndicator').classList.remove('hidden');
+      showToast('You are offline – catches will be saved locally');
     });
 
     // Set initial offline indicator state
