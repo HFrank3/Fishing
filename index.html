@@ -217,33 +217,35 @@
     }
 
     // --- DATABASE OPERATIONS ---
-    async function loadCatches() {
-      try {
-        const res = await fetch(DB_URL);
-        const data = await res.json();
-        if (!data) {
-          allCatches = [];
-          return [];
-        }
-        allCatches = Object.keys(data).map(key => ({ id: key, ...data[key] }))
-                     .sort((a, b) => b.timestamp - a.timestamp);
-        
-        if (!isOnline) {
-          const offlineCatches = await getOfflineCatches();
-          allCatches = [...offlineCatches, ...allCatches].sort((a, b) => b.timestamp - a.timestamp);
-        }
-        
-        return allCatches;
-      } catch (e) {
-        console.error("Load failed:", e);
-        if (!isOnline) {
-          allCatches = await getOfflineCatches();
-          return allCatches;
-        }
-        allCatches = [];
-        return [];
-      }
+    // 1. Updated Database Operation
+async function loadCatches() {
+  try {
+    const res = await fetch(DB_URL);
+    if (!res.ok) throw new Error('Network response was not ok');
+    const data = await res.json();
+    
+    // Safety check: if database is empty, set to empty array
+    if (!data) {
+      allCatches = [];
+    } else {
+      allCatches = Object.keys(data).map(key => ({ id: key, ...data[key] }))
+                   .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     }
+    
+    // Merge offline catches if applicable
+    if (!isOnline) {
+      const offlineCatches = await getOfflineCatches();
+      allCatches = [...offlineCatches, ...allCatches].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    }
+    
+    return allCatches;
+  } catch (e) {
+    console.error("Load failed:", e);
+    // Fallback to offline data so the screen doesn't stay white
+    allCatches = await getOfflineCatches();
+    return allCatches;
+  }
+}
 
     async function loadComments(catchId) {
       try {
@@ -430,23 +432,31 @@ async function uploadPhotoToFirebase(compressedDataUrl) {
 
     // --- UI RENDERING ---
 function renderUI() {
-      const list = document.getElementById('catchList');
-      const currentUser = getCurrentUser();
+  const list = document.getElementById('catchList');
+  if (!list) return;
 
-      // NEW SAFE FILTER: Defaults to an empty string if old data is missing
-      const filtered = allCatches.filter(item => {
-        const safeSpecies = item.species || '';
-        const safeName = item.name || '';
-        
-        const speciesMatch = !filterSpecies || safeSpecies.toLowerCase().includes(filterSpecies.toLowerCase());
-        const userMatch = !filterUser || safeName.toLowerCase().includes(filterUser.toLowerCase());
-        return speciesMatch && userMatch;
-      });
+  const currentUser = getCurrentUser();
 
-      if (filtered.length === 0) {
-        list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches found.</div>';
-        return;
-      }
+  // Guard clause: if allCatches isn't an array yet, stop here
+  if (!Array.isArray(allCatches)) {
+    list.innerHTML = '<div class="text-center py-10 text-slate-400">Initializing data...</div>';
+    return;
+  }
+
+  const filtered = allCatches.filter(item => {
+    // String safety: ensure these are never null/undefined before calling toLowerCase
+    const s = (item.species || "").toLowerCase();
+    const n = (item.name || "").toLowerCase();
+    const fs = (filterSpecies || "").toLowerCase();
+    const fu = (filterUser || "").toLowerCase();
+    
+    return s.includes(fs) && n.includes(fu);
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches found matching filters.</div>';
+    return;
+  }
       const stats = calculateStats(filtered);
 
       updateDatalist('speciesList', allCatches.map(c => c.species));
@@ -577,6 +587,7 @@ function renderUI() {
           }
         }, 100);
       }
+      list.innerHTML = filtered.map(item => { /* your existing template */ }).join('');
     }
 
     async function addComment(catchId) {
