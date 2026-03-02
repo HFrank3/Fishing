@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#1e1b4b" />
-  <title>FishLog - Daily Chart & Forecast</title>
+  <title>FishLog - Expert System Forecast</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,8 +12,8 @@
 <body class="bg-slate-100 text-slate-900 font-sans pb-10">
 
   <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
-    <h1 class="text-3xl font-bold tracking-tight">Hourly Forecast & Trends</h1>
-    <p class="text-indigo-200 text-sm mt-1">Bite Probability & Physics • Geneva, NY</p>
+    <h1 class="text-3xl font-bold tracking-tight">Expert System Forecast</h1>
+    <p class="text-indigo-200 text-sm mt-1">Physics-Driven Bite Predictions • Geneva, NY</p>
     
     <div class="mt-4 flex gap-2 justify-center flex-wrap">
       <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Log</a>
@@ -24,86 +24,83 @@
     </div>
   </header>
 
-  <main class="max-w-4xl mx-auto px-4 space-y-6">
+  <main class="max-w-5xl mx-auto px-4 space-y-6">
     
     <section class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
       <h2 class="text-xl font-bold text-indigo-950 mb-2">Hourly Bite Probability (%)</h2>
-      <p class="text-xs text-slate-500 mb-4">Calculated using forecasted barometric drops, temperature, precipitation, and moon phase.</p>
+      <p class="text-xs text-slate-500 mb-4">Calculated using the FishCast+ rule-based expert system.</p>
       <div class="relative h-64 w-full">
         <canvas id="forecastChart"></canvas>
       </div>
     </section>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-        <p class="text-[10px] font-bold uppercase text-slate-400">Current Baro</p>
-        <p id="trend-baro" class="text-lg font-bold text-indigo-900">--</p>
+        <p class="text-[10px] font-bold uppercase text-slate-400">Seneca Temp</p>
+        <p id="env-water" class="text-lg font-bold text-indigo-900">--</p>
       </div>
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Wind State</p>
+        <p id="env-wind" class="text-sm font-bold text-indigo-900 mt-1">--</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Barometer</p>
+        <p id="env-baro" class="text-lg font-bold text-indigo-900">--</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+        <p class="text-[10px] font-bold uppercase text-slate-400">Cloud Cover</p>
+        <p id="env-clouds" class="text-lg font-bold text-indigo-900">--</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center col-span-2 md:col-span-1">
         <p class="text-[10px] font-bold uppercase text-slate-400">Current Moon</p>
-        <p id="trend-moon" class="text-sm font-bold text-indigo-900 mt-1 truncate">--</p>
-      </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-        <p class="text-[10px] font-bold uppercase text-slate-400">Next Precip</p>
-        <p id="trend-precip" class="text-lg font-bold text-indigo-900">--</p>
-      </div>
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
-        <p class="text-[10px] font-bold uppercase text-slate-400">Current Temp</p>
-        <p id="trend-temp" class="text-lg font-bold text-indigo-900">--</p>
+        <p id="env-moon" class="text-sm font-bold text-indigo-900 mt-1">--</p>
       </div>
     </div>
 
-    <section class="bg-indigo-50 p-6 rounded-xl border border-indigo-100 shadow-sm mt-4">
-      <h2 class="text-lg font-bold text-indigo-950 mb-3">How We Calculate the Bite %</h2>
-      <p class="text-xs text-indigo-800 mb-4">Every hour starts with a baseline probability. As environmental conditions align to trigger feeding behavior, the percentage increases up to a maximum of 100%.</p>
+    <section class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-sm mt-4 text-white">
+      <h2 class="text-lg font-bold text-indigo-300 mb-3">How the Engine Calculates the Score</h2>
+      <p class="text-xs text-slate-300 mb-4">This algorithm uses a smart set of "if-this-then-that" logic rules based on environmental conditions and fish biology. It starts with a base score and adds/subtracts weighted bonuses.</p>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm text-indigo-900">
-        <div class="flex justify-between border-b border-indigo-200 pb-1">
-          <span>Base Probability:</span> <span class="font-bold">10%</span>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Base Probability:</span> <span class="font-bold">30%</span>
         </div>
-        <div class="flex justify-between border-b border-indigo-200 pb-1">
-          <span>Falling Barometric Pressure:</span> <span class="font-bold text-green-600">+35%</span>
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Falling Pressure:</span> <span class="font-bold text-green-400">+20%</span>
         </div>
-        <div class="flex justify-between border-b border-indigo-200 pb-1">
-          <span>Full or New Moon:</span> <span class="font-bold text-green-600">+20%</span>
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Golden Hour (Dawn/Dusk):</span> <span class="font-bold text-green-400">+15%</span>
         </div>
-        <div class="flex justify-between border-b border-indigo-200 pb-1">
-          <span>Light Rain (0.1 - 0.5 in):</span> <span class="font-bold text-green-600">+20%</span>
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Overcast / Cloud Cover:</span> <span class="font-bold text-green-400">+10%</span>
         </div>
-        <div class="flex justify-between border-b border-indigo-200 pb-1 md:col-span-2">
-          <span>Ideal Temperature (55°F - 75°F):</span> <span class="font-bold text-green-600">+15%</span>
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Moderate Steady Wind:</span> <span class="font-bold text-green-400">+10%</span>
+        </div>
+        <div class="flex justify-between border-b border-slate-600 pb-1">
+          <span class="text-slate-200">Heavy Gusts (>15mph):</span> <span class="font-bold text-red-400">-10%</span>
         </div>
       </div>
     </section>
-
-    <div class="mt-8 border-t border-slate-200 pt-6">
-      <h2 class="text-lg font-bold text-indigo-950 mb-4 px-1">Historical Group Averages</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center flex justify-between items-center">
-          <div class="text-left">
-            <h3 class="text-xs font-bold text-indigo-400 uppercase">Ideal Catch Temp</h3>
-            <p class="text-[10px] text-slate-400">Avg temp during successful catches</p>
-          </div>
-          <p id="bestTemp" class="text-2xl font-black text-indigo-900">--</p>
-        </div>
-        
-        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-center flex justify-between items-center">
-          <div class="text-left">
-            <h3 class="text-xs font-bold text-blue-400 uppercase">Pressure State</h3>
-            <p class="text-[10px] text-slate-400">Majority of catches occurred during</p>
-          </div>
-          <p id="pressureTrend" class="text-xl font-black text-blue-900">--</p>
-        </div>
-      </div>
-    </div>
   </main>
 
   <script>
-    const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
     const LAT = 42.8689, LON = -76.9774; // Geneva, NY
 
-    // Helper to strip units
-    const toNum = (str) => str ? parseFloat(str.replace(/[^\d.-]/g, '')) : null;
+    // Fetch live water temperature from USGS Site 425027076564401
+    async function fetchUSGSWaterTemp() {
+      try {
+        const url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=425027076564401&parameterCd=00010';
+        const res = await fetch(url);
+        const data = await res.json();
+        const tempC = parseFloat(data.value.timeSeries[0].values[0].value[0].value);
+        // Convert Celsius to Fahrenheit
+        return (tempC * 9/5) + 32; 
+      } catch (e) {
+        console.warn("USGS Water Data unavailable, using seasonal default.", e);
+        return 45; // Default Seneca spring temp if API fails
+      }
+    }
 
     // Moon Phase Calculator
     function getMoonPhase(date) {
@@ -119,30 +116,59 @@
       return "Waning Crescent 🌘";
     }
 
-    // Probability Logic
-    function calculateBiteProbability(hourData, prevHourData) {
-      // BASE DROPPED TO 10%
-      let score = 10; 
+    // FishCast+ Expert System Engine
+    function calculateBiteProbability(hourData, prevHourData, dailyData) {
+      // 1. Initialize Score
+      let score = 30; 
 
-      // 1. Barometric Pressure Drop (Huge trigger)
-      if (prevHourData && hourData.pressure < prevHourData.pressure) score += 35;
+      // 2. Analyze Environment & 3. Calculate Score for Each Factor
+
+      // Time of Day Score (Golden Hour)
+      // Bonus if within 1.5 hours of sunrise or sunset
+      const hourUnix = hourData.time;
+      let isGoldenHour = false;
       
-      // 2. Precipitation (Light rain 0.1-0.5 is ideal)
-      if (hourData.precip > 0 && hourData.precip < 0.5) score += 20;
+      dailyData.sunrise.forEach((sr, idx) => {
+        const ss = dailyData.sunset[idx];
+        if (Math.abs(hourUnix - sr) <= 5400 || Math.abs(hourUnix - ss) <= 5400) {
+          isGoldenHour = true;
+        }
+      });
+      if (isGoldenHour) score += 15;
 
-      // 3. Temperature (Ideal 55-75°F)
-      if (hourData.temp >= 55 && hourData.temp <= 75) score += 15;
+      // Pressure Score
+      if (prevHourData) {
+        if (hourData.pressure < prevHourData.pressure) score += 20; // Falling is a trigger
+        if (hourData.pressure > prevHourData.pressure + 1) score -= 5; // Sharp rise penalty
+      }
 
-      // 4. Moon Phase Bonus
-      if (hourData.moon.includes("Full") || hourData.moon.includes("New")) score += 20;
+      // Wind Score
+      // Reward moderate steady wind, penalize excessive gusts
+      if (hourData.windSpeed > 4 && hourData.windSpeed < 12 && hourData.windGusts < 15) {
+        score += 10;
+      } else if (hourData.windGusts >= 15) {
+        score -= 10;
+      }
 
-      return Math.min(score, 100);
+      // Weather Score (Cloud Cover & Rain)
+      // Rewards overcast conditions
+      if (hourData.clouds > 65) score += 10; 
+      if (hourData.precip > 0 && hourData.precip < 0.2) score += 5; // Light rain bonus
+
+      // Solunar Score
+      if (hourData.moon.includes("Full") || hourData.moon.includes("New")) score += 10;
+
+      // 4. Finalize Hourly Score: Clamp between 0 and 100
+      return Math.max(0, Math.min(score, 100)); 
     }
 
     async function initDashboard() {
       try {
-        // Fetch Forecast (Note: timeformat=unixtime is included here to fix your Date error!)
-        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit&forecast_days=2`;
+        // Fetch USGS Water Temp
+        const waterTemp = await fetchUSGSWaterTemp();
+
+        // 1. Data Gathering: Fetch Weather Forecast from Open-Meteo
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&hourly=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m,cloud_cover&timeformat=unixtime&timezone=auto&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch&forecast_days=2`;
         const forecastRes = await fetch(forecastUrl);
         const forecastData = await forecastRes.json();
 
@@ -150,18 +176,24 @@
         const probabilities = [];
         const currentMoon = getMoonPhase(new Date());
 
+        // 2. Main Processing Loop
         for (let i = 1; i < 48; i++) {
           const hour = {
+            time: forecastData.hourly.time[i],
             temp: forecastData.hourly.temperature_2m[i],
             pressure: forecastData.hourly.surface_pressure[i],
             precip: forecastData.hourly.precipitation[i],
+            windSpeed: forecastData.hourly.wind_speed_10m[i],
+            windGusts: forecastData.hourly.wind_gusts_10m[i],
+            clouds: forecastData.hourly.cloud_cover[i],
             moon: getMoonPhase(new Date(forecastData.hourly.time[i] * 1000))
           };
           const prev = { pressure: forecastData.hourly.surface_pressure[i-1] };
+          const daily = { sunrise: forecastData.daily.sunrise, sunset: forecastData.daily.sunset };
           
-          const prob = calculateBiteProbability(hour, prev);
+          const prob = calculateBiteProbability(hour, prev, daily);
           
-          let dateObj = new Date(forecastData.hourly.time[i] * 1000);
+          let dateObj = new Date(hour.time * 1000);
           let timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit'});
           if(i === 1 || dateObj.getHours() === 0) timeStr = dateObj.toLocaleDateString('en-US', {weekday: 'short'}) + ' ' + timeStr;
           
@@ -169,7 +201,8 @@
           probabilities.push(prob);
         }
 
-        // Render Hourly Chart
+        // Render Chart
+       // [Image of a line chart titled "Hourly Bite Probability (%)" showing predicted fishing success over 48 hours]
         new Chart(document.getElementById('forecastChart'), {
           type: 'line',
           data: {
@@ -192,30 +225,12 @@
           }
         });
 
-        // Update Current Forecast Metrics
-        document.getElementById('trend-baro').innerText = forecastData.hourly.surface_pressure[1] < forecastData.hourly.surface_pressure[0] ? "Falling 📉" : "Stable 📈";
-        document.getElementById('trend-temp').innerText = `${Math.round(forecastData.hourly.temperature_2m[0])}°F`;
-        document.getElementById('trend-precip').innerText = forecastData.hourly.precipitation.slice(0,12).some(p => p > 0) ? "Soon 🌧️" : "Clear ☀️";
-        document.getElementById('trend-moon').innerText = currentMoon;
-
-        // Fetch & Update Historical Firebase Data
-        const dbRes = await fetch(DB_URL);
-        const dbData = await dbRes.json();
-        
-        if (dbData) {
-          const catches = Object.values(dbData);
-          let dropCount = 0, riseCount = 0, tempSum = 0, tempCount = 0;
-
-          catches.forEach(c => {
-            const p = toNum(c.weather?.pressure);
-            const t = toNum(c.weather?.temp);
-            if (p) p < 1013 ? dropCount++ : riseCount++;
-            if (t) { tempSum += t; tempCount++; }
-          });
-
-          document.getElementById('bestTemp').textContent = tempCount > 0 ? `${Math.round(tempSum/tempCount)}°F` : 'N/A';
-          document.getElementById('pressureTrend').innerHTML = dropCount > riseCount ? 'Falling Baro <span class="text-sm">📉</span>' : 'Steady/Rising <span class="text-sm">📈</span>';
-        }
+        // Update Dashboard Elements
+        document.getElementById('env-water').innerText = `${Math.round(waterTemp)}°F`;
+        document.getElementById('env-wind').innerText = `${Math.round(forecastData.hourly.wind_speed_10m[0])} mph (Gusts ${Math.round(forecastData.hourly.wind_gusts_10m[0])})`;
+        document.getElementById('env-baro').innerText = forecastData.hourly.surface_pressure[1] < forecastData.hourly.surface_pressure[0] ? "Falling 📉" : "Stable 📈";
+        document.getElementById('env-clouds').innerText = `${forecastData.hourly.cloud_cover[0]}%`;
+        document.getElementById('env-moon').innerText = currentMoon;
 
       } catch (e) {
         console.error("Dashboard Error:", e);
