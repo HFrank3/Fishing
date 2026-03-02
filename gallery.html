@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#1e1b4b" />
+  
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FishLog" />
+  <link rel="apple-touch-icon" href="https://scontent-bos5-1.cdninstagram.com/v/t51.2885-19/417958140_348114848001203_7605986349907024479_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-bos5-1.cdninstagram.com&_nc_cat=111&_nc_oc=Q6cZ2QGvPHaHInqhHSC06z5j945Wmc06HbIG6Dq7J1ELzTgzK5FtZ1Y2KsqYLTs9oaPEDIc&_nc_ohc=SmsY5x6iV7wQ7kNvwEAwADd&_nc_gid=yBOGZ-5UJsBQoNEmvZOGYg&edm=AOQ1c0wBAAAA&ccb=7-5&oh=00_Afw1rz3aPKC0VDhePH7C-gzHMUWx52EU9RjobUsySeM7-Q&oe=69AB7BE3&_nc_sid=8b3546">
+
+  <title>FishLog - Photo Gallery</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #photoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .photo-card { position: relative; overflow: hidden; border-radius: 0.75rem; aspect-ratio: 1; cursor: pointer; }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; transition: opacity 200ms; display: flex; flex-direction: column; justify-content: flex-end; padding: 0.75rem; color: white; }
+    .photo-card:hover .photo-overlay { opacity: 1; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans pb-10">
+
+  <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
+    <h1 class="text-3xl font-bold tracking-tight">FishLog Gallery</h1>
+    <p class="text-indigo-200 text-sm mt-1">Share Your Catches • Geneva, NY</p>
+    <div class="mt-4 flex gap-2 justify-center">
+      <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Catch Log</a>
+      <a href="gallery.html" class="px-4 py-2 bg-indigo-500 rounded-lg text-sm font-semibold">Gallery</a>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4">
+    <div class="bg-white p-5 rounded-xl shadow-md border border-slate-200 mb-8">
+      <h2 class="text-lg font-bold text-slate-800 mb-4">Share a Photo</h2>
+      <form id="photoForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Your Name</label>
+          <input type="text" id="name" placeholder="e.g. John" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Photo Description</label>
+          <input type="text" id="description" placeholder="e.g. Trophy Lake Trout" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-2">Select Photo</label>
+          <input type="file" id="photoFile" accept="image/*" class="w-full p-3 rounded-lg border border-slate-300 cursor-pointer file:bg-indigo-600 file:text-white file:px-4 file:py-2 file:rounded file:border-0 file:cursor-pointer" required />
+          <p class="text-[11px] text-slate-500 mt-1">Max 5MB per image</p>
+        </div>
+        <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3">
+          <span>Upload Photo</span>
+          <div id="loadingSpinner" class="loader hidden"></div>
+        </button>
+      </form>
+    </div>
+
+    <div class="mb-4">
+      <h2 class="text-xl font-bold text-slate-800">Recent Photos</h2>
+      <p class="text-sm text-slate-500 mt-1">Click to view larger</p>
+    </div>
+    
+    <div id="photoGrid" class="mb-8">
+      <div class="col-span-full text-center py-10 text-slate-400">Loading photos...</div>
+    </div>
+  </main>
+
+  <!-- Modal for full size image -->
+  <div id="imageModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="closeModal()">
+    <div class="bg-white rounded-lg max-w-2xl w-full p-4" onclick="event.stopPropagation()">
+      <img id="modalImage" src="" class="w-full rounded-lg mb-4" />
+      <div id="modalInfo" class="space-y-2"></div>
+      <button onclick="closeModal()" class="w-full mt-4 bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-2 rounded-lg transition">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // --- CONFIGURATION ---
+    const STORAGE_API = 'https://firebasestorage.googleapis.com/v0/b/fishing-app-4b031.appspot.com/o';
+    const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/photos.json';
+
+    function getCurrentUser() {
+      return document.getElementById('name')?.value || localStorage.getItem('currentUser') || null;
+    }
+
+    // --- DATABASE OPERATIONS ---
+    async function loadPhotos() {
+      try {
+        const res = await fetch(DB_URL);
+        const data = await res.json();
+        if (!data) return [];
+        return Object.keys(data).map(key => ({ id: key, ...data[key] }))
+                     .sort((a, b) => b.timestamp - a.timestamp);
+      } catch (e) {
+        console.error("Load failed:", e);
+        return [];
+      }
+    }
+
+    async function savePhotoMetadata(metadata) {
+      await fetch(DB_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata)
+      });
+    }
+
+    async function deletePhoto(id, owner) {
+      const currentUser = getCurrentUser();
+      if (currentUser !== owner) {
+        alert("You can only delete your own photos!");
+        return;
+      }
+      if (!confirm("Remove this photo from the gallery?")) return;
+      const deleteUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/photos/${id}.json`;
+      await fetch(deleteUrl, { method: 'DELETE' });
+      renderGallery();
+    }
+
+    async function uploadToImgur(file) {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const res = await fetch('https://api.imgur.com/3/image', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Client-ID 5a937f1b6ee60fb'
+          },
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          return data.data.link;
+        }
+        throw new Error('Upload failed');
+      } catch (e) {
+        console.error("Imgur upload failed:", e);
+        return null;
+      }
+    }
+
+    // --- UI RENDERING ---
+    async function renderGallery() {
+      const grid = document.getElementById('photoGrid');
+      const photos = await loadPhotos();
+      const currentUser = getCurrentUser();
+
+      if (photos.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-400">No photos yet. Be the first to share!</div>';
+        return;
+      }
+
+      grid.innerHTML = photos.map(photo => `
+        <div class="photo-card group border border-slate-200 shadow-sm relative" onclick="openModal('${photo.id}', '${photo.imageUrl}', '${photo.name}', '${photo.description}', '${new Date(photo.timestamp).toLocaleString()}')">
+          <img src="${photo.imageUrl}" alt="${photo.description}" />
+          <div class="photo-overlay">
+            <p class="text-xs font-semibold truncate">${photo.description}</p>
+            <p class="text-[10px] text-gray-300">by ${photo.name}</p>
+          </div>
+          ${currentUser === photo.name ? `<button onclick="event.stopPropagation(); deletePhoto('${photo.id}', '${photo.name}')" class="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full hover:bg-red-600 transition flex items-center justify-center text-sm font-bold">✕</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function openModal(id, imageUrl, name, description, timestamp) {
+      const modal = document.getElementById('imageModal');
+      document.getElementById('modalImage').src = imageUrl;
+      document.getElementById('modalInfo').innerHTML = `
+        <div>
+          <h3 class="font-bold text-lg text-slate-800">${description}</h3>
+          <p class="text-sm text-slate-600">📸 by <span class="font-semibold">${name}</span></p>
+          <p class="text-xs text-slate-500">${timestamp}</p>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('imageModal').classList.add('hidden');
+    }
+
+    // --- FORM HANDLING ---
+    document.getElementById('photoForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const spinner = document.getElementById('loadingSpinner');
+      const file = document.getElementById('photoFile').files[0];
+
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Photo must be smaller than 5MB');
+        return;
+      }
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      const name = document.getElementById('name').value;
+      localStorage.setItem('currentUser', name);
+
+      const imageUrl = await uploadToImgur(file);
+      
+      if (!imageUrl) {
+        alert('Failed to upload image. Please try again.');
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        return;
+      }
+
+      const timestamp = Date.now();
+
+      await savePhotoMetadata({
+        name,
+        description: document.getElementById('description').value,
+        imageUrl,
+        timestamp
+      });
+
+      e.target.reset();
+      document.getElementById('name').value = name;
+      await renderGallery();
+      
+      btn.disabled = false;
+      spinner.classList.add('hidden');
+    });
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedName = localStorage.getItem('currentUser');
+      if (savedName) {
+        document.getElementById('name').value = savedName;
+      }
+      renderGallery();
+    });
+  </script>
+</body>
+</html>
