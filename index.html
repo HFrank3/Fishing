@@ -331,11 +331,11 @@ async function loadCatches() {
     }
 
     async function fetchWeather(lat, lon, timestamp) {
-      if (!lat || !lon) return { temp: 'N/A', pressure: 'N/A', hum: 'N/A' };
+      if (!lat || !lon) return { temp: 'N/A', pressure: 'N/A', hum: 'N/A', pressureTrend: '' };
       
       const catchDate = new Date(timestamp);
       
-      // Format to local YYYY-MM-DD to prevent timezone shifting
+      // Format to local YYYY-MM-DD
       const year = catchDate.getFullYear();
       const month = String(catchDate.getMonth() + 1).padStart(2, '0');
       const day = String(catchDate.getDate()).padStart(2, '0');
@@ -346,18 +346,23 @@ async function loadCatches() {
       
       let url;
       if (dateStr === nowStr) {
-        // Use standard forecast for today
-        url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+        // Forecast for today (includes past_hours=1 so we always have a previous hour to compare)
+        url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit&past_hours=1`;
       } else {
-        // Use historical API for past catches
-        url = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${dateStr}&end_date=${dateStr}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+        // Historical API - pull the day before too so we can check the trend of the very first hour
+        const prevDayDate = new Date(timestamp - 86400000);
+        const pYear = prevDayDate.getFullYear();
+        const pMonth = String(prevDayDate.getMonth() + 1).padStart(2, '0');
+        const pDay = String(prevDayDate.getDate()).padStart(2, '0');
+        const prevDateStr = `${pYear}-${pMonth}-${pDay}`;
+        
+        url = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&start_date=${prevDateStr}&end_date=${dateStr}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
       }
 
       try {
         const res = await fetch(url);
         const data = await res.json();
         
-        // Find the closest hour to when the fish was caught
         const targetUnix = Math.floor(timestamp / 1000);
         let closestIdx = 0;
         let minDiff = Infinity;
@@ -370,14 +375,25 @@ async function loadCatches() {
           }
         });
 
+        // Calculate the Pressure Trend
+        let trend = "";
+        if (closestIdx > 0) {
+          const currentP = data.hourly.surface_pressure[closestIdx];
+          const prevP = data.hourly.surface_pressure[closestIdx - 1];
+          if (currentP < prevP) trend = "Falling 📉";
+          else if (currentP > prevP) trend = "Rising 📈";
+          else trend = "Stable ➖";
+        }
+
         return {
           temp: `${Math.round(data.hourly.temperature_2m[closestIdx])}°F`,
           pressure: `${Math.round(data.hourly.surface_pressure[closestIdx])} hPa`,
-          hum: `${data.hourly.relative_humidity_2m[closestIdx]}%`
+          hum: `${data.hourly.relative_humidity_2m[closestIdx]}%`,
+          pressureTrend: trend
         };
       } catch (e) { 
         console.error("Weather Error:", e);
-        return { temp: 'Err', pressure: 'Err', hum: 'Err' }; 
+        return { temp: 'Err', pressure: 'Err', hum: 'Err', pressureTrend: '' }; 
       }
     }
 
@@ -526,7 +542,7 @@ function renderUI() {
             ${item.weight ? `<div class="text-xs text-slate-500 font-semibold">⚖️ WEIGHT: <span class="text-slate-900">${item.weight} lbs</span></div>` : ''}
             ${item.length ? `<div class="text-xs text-slate-500 font-semibold">📏 LENGTH: <span class="text-slate-900">${item.length} in</span></div>` : ''}
             <div class="text-xs text-slate-500 font-semibold">🌡️ TEMP: <span class="text-slate-900">${item.weather?.temp}</span></div>
-            <div class="text-xs text-slate-500 font-semibold">⏲️ BARO: <span class="text-slate-900">${item.weather?.pressure}</span></div>
+            <div class="text-xs text-slate-500 font-semibold">⏲️ BARO: <span class="text-slate-900">${item.weather?.pressure} ${item.weather?.pressureTrend ? `<span class="text-indigo-600 font-bold ml-1">${item.weather.pressureTrend}</span>` : ''}</span></div>
             <div class="text-xs text-slate-500 font-semibold">💧 HUM: <span class="text-slate-900">${item.weather?.hum}</span></div>
             <div class="text-xs text-slate-500 font-semibold">🌑 MOON: <span class="text-slate-900 text-[10px]">${item.moon}</span></div>
             <div class="col-span-2 text-[10px] text-indigo-400 font-mono italic">
