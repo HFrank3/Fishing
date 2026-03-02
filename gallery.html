@@ -79,7 +79,6 @@
   <script>
     // --- CONFIGURATION ---
     const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/photos.json';
-    const STORAGE_BUCKET = 'fishing-app-4b031.appspot.com';
 
     function getCurrentUser() {
       return document.getElementById('name')?.value || localStorage.getItem('currentUser') || null;
@@ -119,39 +118,23 @@
       renderGallery();
     }
 
-    async function uploadToFirebase(file) {
+    async function uploadToCloudinary(file) {
       try {
-        const timestamp = Date.now();
-        const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}`;
-        const fileExt = file.name.split('.').pop();
-        const storagePath = `photos/${fileName}.${fileExt}`;
-        
-        // Convert to base64
-        const reader = new FileReader();
-        return new Promise((resolve) => {
-          reader.onload = async (e) => {
-            const base64String = e.target.result.split(',')[1];
-            try {
-              const res = await fetch(
-                `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(storagePath)}?uploadType=media`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': file.type },
-                  body: atob(base64String)
-                }
-              );
-              const data = await res.json();
-              const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(storagePath)}?alt=media`;
-              resolve(downloadUrl);
-            } catch (err) {
-              console.error("Firebase upload error:", err);
-              resolve(null);
-            }
-          };
-          reader.readAsDataURL(file);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'l5vyykjs'); // unsigned upload preset
+        formData.append('timestamp', Math.floor(Date.now() / 1000));
+
+        const res = await fetch('https://api.cloudinary.com/v1_1/deq3nbrvr/image/upload', {
+          method: 'POST',
+          body: formData
         });
+
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        const data = await res.json();
+        return data.secure_url;
       } catch (e) {
-        console.error("Upload failed:", e);
+        console.error("Cloudinary upload error:", e);
         return null;
       }
     }
@@ -214,7 +197,7 @@
       const name = document.getElementById('name').value;
       localStorage.setItem('currentUser', name);
 
-      const imageUrl = await uploadToFirebase(file);
+      const imageUrl = await uploadToCloudinary(file);
       
       if (!imageUrl) {
         alert('Failed to upload image. Please try again.');
