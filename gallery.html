@@ -52,7 +52,6 @@
     </div>
   </main>
 
-  <!-- Modal for full size image -->
   <div id="imageModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onclick="closeModal()">
     <div class="bg-white rounded-lg max-w-2xl w-full p-4" onclick="event.stopPropagation()">
       <img id="modalImage" src="" class="w-full rounded-lg mb-4" />
@@ -64,6 +63,7 @@
   <script>
     // --- CONFIGURATION ---
     const CATCHES_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+    let galleryPhotos = [];
 
     // --- DATABASE OPERATIONS ---
     async function loadPhotos() {
@@ -84,15 +84,15 @@
     // --- UI RENDERING ---
     async function renderGallery() {
       const grid = document.getElementById('photoGrid');
-      const photos = await loadPhotos();
+      galleryPhotos = await loadPhotos();
 
-      if (photos.length === 0) {
+      if (galleryPhotos.length === 0) {
         grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-400">No photos yet. Start by logging a catch with a photo!</div>';
         return;
       }
 
-      grid.innerHTML = photos.map(photo => `
-        <div class="photo-card group border border-slate-200 shadow-sm relative cursor-pointer" onclick="openModal('${photo.id.replace(/'/g, "\\'")}', '${photo.photo.replace(/'/g, "\\'")}', '${photo.name.replace(/'/g, "\\'")}', '${photo.species.replace(/'/g, "\\'")}', '${new Date(photo.timestamp).toLocaleString().replace(/'/g, "\\'")}')">
+      grid.innerHTML = galleryPhotos.map(photo => `
+        <div class="photo-card group border border-slate-200 shadow-sm relative cursor-pointer" onclick="openModal('${photo.id}')">
           <img src="${photo.photo}" alt="${photo.species}" />
           <div class="photo-overlay">
             <p class="text-xs font-semibold truncate">${photo.species}</p>
@@ -102,14 +102,17 @@
       `).join('');
     }
 
-    function openModal(id, imageUrl, name, species, timestamp) {
+    function openModal(id) {
+      const photo = galleryPhotos.find(p => p.id === id);
+      if (!photo) return;
+      
       const modal = document.getElementById('imageModal');
-      document.getElementById('modalImage').src = imageUrl;
+      document.getElementById('modalImage').src = photo.photo;
       document.getElementById('modalInfo').innerHTML = `
         <div>
-          <h3 class="font-bold text-lg text-slate-800">${species}</h3>
-          <p class="text-sm text-slate-600">🎣 Caught by <span class="font-semibold">${name}</span></p>
-          <p class="text-xs text-slate-500">${timestamp}</p>
+          <h3 class="font-bold text-lg text-slate-800">${photo.species}</h3>
+          <p class="text-sm text-slate-600">🎣 Caught by <span class="font-semibold">${photo.name}</span></p>
+          <p class="text-xs text-slate-500">${new Date(photo.timestamp).toLocaleString()}</p>
         </div>
       `;
       modal.classList.remove('hidden');

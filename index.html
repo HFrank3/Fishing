@@ -13,6 +13,10 @@
   <title>Group Fishing Log</title>
   <link rel="manifest" href="manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     #catchList { max-height: 60vh; overflow-y: auto; }
     .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; }
@@ -66,13 +70,19 @@
         <datalist id="spotList"></datalist>
       </div>
 
-    <!-- toast container -->
-    <div id="toastContainer" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+      <div id="toastContainer" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+      
       <div>
         <label class="block text-xs font-bold uppercase text-slate-500 mb-2">Upload Photo (Optional)</label>
         <input type="file" id="photoFile" accept="image/*" class="w-full p-3 rounded-lg border border-slate-300 cursor-pointer file:bg-indigo-600 file:text-white file:px-4 file:py-2 file:rounded file:border-0 file:cursor-pointer" />
         <p class="text-[11px] text-slate-500 mt-1">Max 10MB per image</p>
       </div>
+
+      <div class="flex items-center gap-2 mt-2">
+        <input type="checkbox" id="secretSpot" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+        <label for="secretSpot" class="text-xs font-bold uppercase text-slate-500 cursor-pointer">Keep coordinates private</label>
+      </div>
+
       <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3">
         <span>Record Catch</span>
         <div id="loadingSpinner" class="loader hidden"></div>
@@ -87,7 +97,7 @@
     <div class="mt-4 flex gap-2 flex-wrap mb-4">
       <input type="text" id="filterSpecies" placeholder="Filter by species..." class="flex-1 min-w-[120px] p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
       <input type="text" id="filterUser" placeholder="Filter by user..." class="flex-1 min-w-[120px] p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-      <button id="clearFilters" class="px-3 py-2 text-sm bg-slate-300 hover:bg-slate-400 rounded-lg font-semibold">Reset</button>
+      <button id="clearFilters" class="px-3 py-2 text-sm bg-slate-300 hover:bg-slate-400 rounded-lg font-semibold transition">Reset</button>
     </div>
     
     <div id="catchList" class="mt-4 space-y-4">
@@ -95,7 +105,6 @@
     </div>
   </main>
 
-  <!-- Catch Details Modal -->
   <div id="catchModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       <div id="modalContent" class="p-6"></div>
@@ -194,7 +203,6 @@
       for (const catchData of offlineCatches) {
         try {
           await saveCatch(catchData);
-          // Remove from offline storage after successful sync
           const db = await openDB();
           new Promise((resolve) => {
             const transaction = db.transaction(['offlineCatches'], 'readwrite');
@@ -213,11 +221,13 @@
       try {
         const res = await fetch(DB_URL);
         const data = await res.json();
-        if (!data) return [];
+        if (!data) {
+          allCatches = [];
+          return [];
+        }
         allCatches = Object.keys(data).map(key => ({ id: key, ...data[key] }))
                      .sort((a, b) => b.timestamp - a.timestamp);
         
-        // Also include offline catches that haven't synced yet
         if (!isOnline) {
           const offlineCatches = await getOfflineCatches();
           allCatches = [...offlineCatches, ...allCatches].sort((a, b) => b.timestamp - a.timestamp);
@@ -226,10 +236,11 @@
         return allCatches;
       } catch (e) {
         console.error("Load failed:", e);
-        // If offline, return just offline catches
         if (!isOnline) {
-          return await getOfflineCatches();
+          allCatches = await getOfflineCatches();
+          return allCatches;
         }
+        allCatches = [];
         return [];
       }
     }
@@ -270,7 +281,6 @@
         return true;
       } catch (e) {
         console.error('Save catch error:', e);
-        // If offline, store locally
         if (!isOnline) {
           await saveOfflineCatch(data);
           return true;
@@ -288,6 +298,7 @@
       if (!confirm("Remove this catch from the group log?")) return;
       const deleteUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/catches/${id}.json`;
       await fetch(deleteUrl, { method: 'DELETE' });
+      await loadCatches(); // Refresh local list
       renderUI();
       showToast('Catch deleted');
     }
@@ -359,12 +370,13 @@
       });
     }
 
-    async function uploadPhotoToFirebase(compressedDataUrl) {
+async function uploadPhotoToFirebase(compressedDataUrl) {
       try {
         const timestamp = Date.now();
         const fileName = `photo_${timestamp}`;
         const dbUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/photoImages/${fileName}.json`;
         
+        // Upload the base64 string to Realtime Database
         const response = await fetch(dbUrl, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -372,7 +384,36 @@
         });
 
         if (!response.ok) throw new Error('Upload failed');
+        
+        // Return the base64 string so it can be saved in the catch log
         return compressedDataUrl;
+      } catch (e) {
+        console.error("Photo upload error:", e);
+        return null;
+      }
+      
+    }      try {
+        // Fetch the data URL to convert back to a Blob
+        const res = await fetch(compressedDataUrl);
+        const blob = await res.blob();
+        
+        const timestamp = Date.now();
+        const fileName = `photo_${timestamp}.jpg`;
+        
+        // Use Firebase Storage REST API
+        const storageUrl = `https://firebasestorage.googleapis.com/v0/b/fishing-app-4b031.appspot.com/o/${fileName}`;
+        
+        const response = await fetch(storageUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'image/jpeg' },
+          body: blob
+        });
+
+        if (!response.ok) throw new Error('Upload failed');
+        
+        const data = await response.json();
+        // Construct the public download URL
+        return `${storageUrl}?alt=media&token=${data.downloadTokens}`;
       } catch (e) {
         console.error("Photo upload error:", e);
         return null;
@@ -414,12 +455,12 @@
     }
 
     // --- UI RENDERING ---
-    async function renderUI() {
+    function renderUI() {
       const list = document.getElementById('catchList');
-      const items = await loadCatches();
       const currentUser = getCurrentUser();
 
-      const filtered = items.filter(item => {
+      // Filter instantly using the local array
+      const filtered = allCatches.filter(item => {
         const speciesMatch = !filterSpecies || item.species.toLowerCase().includes(filterSpecies.toLowerCase());
         const userMatch = !filterUser || item.name.toLowerCase().includes(filterUser.toLowerCase());
         return speciesMatch && userMatch;
@@ -432,12 +473,14 @@
 
       const stats = calculateStats(filtered);
 
-      // update suggestion lists based on all catches
       updateDatalist('speciesList', allCatches.map(c => c.species));
       updateDatalist('lureList', allCatches.map(c => c.lure));
       updateDatalist('spotList', allCatches.map(c => c.spot));
 
-      list.innerHTML = filtered.map(item => `
+      list.innerHTML = filtered.map(item => {
+        const isSecretAndNotMine = item.secretSpot && item.name !== currentUser;
+        
+        return `
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in duration-500 cursor-pointer hover:shadow-md transition" onclick="showCatchModal('${item.id}')">
           ${currentUser === item.name ? `<button onclick="event.stopPropagation(); deleteEntry('${item.id}', '${item.name}')" class="float-right text-slate-300 hover:text-red-500 transition">✕</button>` : ''}
           ${item.photo ? `<div class="mb-3 rounded-lg overflow-hidden bg-slate-200 h-40"><img src="${item.photo}" alt="Catch" class="w-full h-full object-cover" /></div>` : ''}
@@ -459,11 +502,11 @@
             <div class="text-xs text-slate-500 font-semibold">💧 HUM: <span class="text-slate-900">${item.weather?.hum}</span></div>
             <div class="text-xs text-slate-500 font-semibold">🌑 MOON: <span class="text-slate-900 text-[10px]">${item.moon}</span></div>
             <div class="col-span-2 text-[10px] text-indigo-400 font-mono italic">
-              📍 ${item.loc ? `${item.loc.lat.toFixed(4)}, ${item.loc.lon.toFixed(4)}` : 'Location Private'}
+              ${isSecretAndNotMine ? '🔒 Location Private' : `📍 ${item.loc ? `${item.loc.lat.toFixed(4)}, ${item.loc.lon.toFixed(4)}` : 'Location Private'}`}
             </div>
           </div>
         </div>
-      `).join('');
+      `}).join('');
     }
 
     async function showCatchModal(id) {
@@ -473,7 +516,6 @@
       const comments = await loadComments(id);
       const modal = document.getElementById('catchModal');
       const content = document.getElementById('modalContent');
-
       const date = new Date(catch_.timestamp);
       
       content.innerHTML = `
@@ -509,8 +551,14 @@
         </div>
 
         <div class="mb-6 p-4 bg-indigo-50 rounded-lg">
-          <p class="text-xs font-bold text-slate-500 uppercase mb-2">Location</p>
-          <p class="text-sm font-mono">${catch_.loc ? `${catch_.loc.lat.toFixed(6)}, ${catch_.loc.lon.toFixed(6)}` : 'Location Private'}</p>
+          <div class="flex justify-between items-center mb-2">
+            <p class="text-xs font-bold text-slate-500 uppercase">Location</p>
+            ${catch_.secretSpot ? '<span class="text-xs font-bold text-red-500">🔒 Secret Spot</span>' : ''}
+          </div>
+          ${(!catch_.secretSpot || catch_.name === getCurrentUser()) && catch_.loc 
+            ? `<div id="mapContainer" class="h-48 w-full rounded-lg z-0 relative"></div>` 
+            : `<p class="text-sm font-mono text-slate-500">Coordinates hidden by angler</p>`
+          }
         </div>
 
         <div class="border-t pt-4">
@@ -531,6 +579,28 @@
       `;
 
       modal.classList.remove('hidden');
+
+      // Initialize Map if applicable
+      if ((!catch_.secretSpot || catch_.name === getCurrentUser()) && catch_.loc) {
+        setTimeout(() => {
+          const mapContainer = document.getElementById('mapContainer');
+          if (mapContainer) {
+            // Leaflet requires removing previous instances if recreating
+            if (mapContainer._leaflet_id) {
+              mapContainer._leaflet_id = null;
+              mapContainer.innerHTML = '';
+            }
+            const map = L.map('mapContainer').setView([catch_.loc.lat, catch_.loc.lon], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap'
+            }).addTo(map);
+            L.marker([catch_.loc.lat, catch_.loc.lon]).addTo(map).bindPopup('Caught here!').openPopup();
+            
+            // Fix map tiles rendering poorly inside modals
+            setTimeout(() => map.invalidateSize(), 150);
+          }
+        }, 100);
+      }
     }
 
     async function addComment(catchId) {
@@ -582,7 +652,8 @@
         const speciesVal = document.getElementById('species').value;
         const lureVal = document.getElementById('lure').value;
         const spotVal = document.getElementById('spot').value;
-        // store last used
+        const secretSpotVal = document.getElementById('secretSpot').checked;
+        
         localStorage.setItem('last_species', speciesVal);
         localStorage.setItem('last_lure', lureVal);
         localStorage.setItem('last_spot', spotVal);
@@ -594,14 +665,22 @@
           weight: document.getElementById('weight').value || null,
           length: document.getElementById('length').value || null,
           spot: spotVal || null,
+          secretSpot: secretSpotVal,
           photo: photoUrl,
           loc, weather, moon, timestamp
         });
 
         e.target.reset();
         document.getElementById('name').value = name;
-        await renderUI();
+        
+        // Refresh local data list and UI
+        await loadCatches();
+        renderUI();
         showToast('Catch recorded!');
+        
+        // Haptic Feedback for mobile devices
+        if (navigator.vibrate) navigator.vibrate(50);
+        
       } catch (error) {
         showToast(error.message || 'Error saving catch. Please try again.');
         console.error('Form submission error:', error);
@@ -631,16 +710,17 @@
     });
 
     // Initial Load
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const savedName = localStorage.getItem('currentUser');
-      if (savedName) {
-        document.getElementById('name').value = savedName;
-      }
-      // restore last-used fields
+      if (savedName) document.getElementById('name').value = savedName;
+      
       ['species','lure','spot'].forEach(field => {
         const val = localStorage.getItem('last_'+field);
         if (val) document.getElementById(field).value = val;
       });
+      
+      // Load from database once on startup, then render
+      await loadCatches();
       renderUI();
     });
 
@@ -649,22 +729,20 @@
       navigator.serviceWorker.register('service-worker.js')
         .then(reg => {
           console.log('Service Worker registered');
-          // Periodically check for offline catches to sync
           setInterval(async () => {
             if (isOnline) {
               await syncOfflineCatches();
             }
-          }, 30000); // Check every 30 seconds
+          }, 30000);
         })
         .catch(err => console.log('Service Worker registration failed:', err));
     }
 
-    // Handle online/offline events
     window.addEventListener('online', () => {
       isOnline = true;
       document.getElementById('offlineIndicator').classList.add('hidden');
       showToast('Back online – syncing catches');
-      renderUI();
+      loadCatches().then(() => renderUI());
       syncOfflineCatches();
       if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'SYNC_CATCHES' });
@@ -677,7 +755,6 @@
       showToast('You are offline – catches will be saved locally');
     });
 
-    // Set initial offline indicator state
     window.addEventListener('load', () => {
       if (!navigator.onLine) {
         document.getElementById('offlineIndicator').classList.remove('hidden');
