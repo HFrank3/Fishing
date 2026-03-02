@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#1e1b4b" />
+  
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FishLog" />
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3306/3306648.png">
+
+  <title>Group Fishing Log</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #catchList { max-height: 60vh; overflow-y: auto; }
+    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans pb-10">
+
+  <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
+    <h1 class="text-3xl font-bold tracking-tight">Group Fishing Log</h1>
+    <p class="text-indigo-200 text-sm mt-1">Shared Catch Tracker • Geneva, NY</p>
+  </header>
+
+  <main class="max-w-md mx-auto px-4">
+    <form id="catchForm" class="bg-white p-5 rounded-xl shadow-md border border-slate-200 space-y-4">
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Target Species</label>
+        <input type="text" id="species" placeholder="e.g. Lake Trout" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lure / Bait Used</label>
+        <input type="text" id="lure" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
+      </div>
+      <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3">
+        <span>Record Catch</span>
+        <div id="loadingSpinner" class="loader hidden"></div>
+      </button>
+    </form>
+
+    <div class="mt-8 flex justify-between items-end px-1">
+      <h2 class="text-xl font-bold text-slate-800">Recent Activity</h2>
+      <span class="text-xs text-slate-500 uppercase font-semibold">Group Feed</span>
+    </div>
+    
+    <div id="catchList" class="mt-4 space-y-4">
+      <div class="text-center py-10 text-slate-400">Loading collective data...</div>
+    </div>
+  </main>
+
+  <script>
+    // --- CONFIGURATION ---
+    const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+
+    // --- DATABASE OPERATIONS ---
+    async function loadCatches() {
+      try {
+        const res = await fetch(DB_URL);
+        const data = await res.json();
+        if (!data) return [];
+        // Convert Firebase object to array and include the ID for deletion
+        return Object.keys(data).map(key => ({ id: key, ...data[key] }))
+                     .sort((a, b) => b.timestamp - a.timestamp);
+      } catch (e) {
+        console.error("Load failed:", e);
+        return [];
+      }
+    }
+
+    async function saveCatch(data) {
+      await fetch(DB_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    }
+
+    async function deleteEntry(id) {
+      if (!confirm("Remove this catch from the group log?")) return;
+      const deleteUrl = `https://fishing-app-4b031-default-rtdb.firebaseio.com/catches/${id}.json`;
+      await fetch(deleteUrl, { method: 'DELETE' });
+      renderUI();
+    }
+
+    // --- PHYSICS & WEATHER LOGIC ---
+    function getMoonDetails(date) {
+      const synodicMonth = 29.530588853;
+      const refNewMoon = new Date("2000-01-06T18:14:00Z");
+      const diffDays = (date.getTime() - refNewMoon.getTime()) / (1000 * 60 * 60 * 24);
+      const phase = (diffDays / synodicMonth) % 1;
+      const normPhase = phase < 0 ? phase + 1 : phase;
+      const illumination = (1 - Math.cos(2 * Math.PI * normPhase)) / 2;
+      const pct = Math.round(illumination * 100);
+
+      if (illumination > 0.96) return `Full Moon 🌕 (${pct}%)`;
+      if (normPhase < 0.25) return `Waxing Crescent 🌒 (${pct}%)`;
+      if (normPhase < 0.50) return `Waxing Gibbous 🌔 (${pct}%)`;
+      if (normPhase < 0.75) return `Waning Gibbous 🌖 (${pct}%)`;
+      return `Waning Crescent 🌘 (${pct}%)`;
+    }
+
+    async function fetchWeather(lat, lon) {
+      if (!lat || !lon) return { temp: 'N/A', pressure: 'N/A', hum: 'N/A' };
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,surface_pressure&timeformat=unixtime&temperature_unit=fahrenheit`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const now = Math.floor(Date.now() / 1000);
+        let idx = data.hourly.time.findIndex(t => t >= now);
+        if (idx === -1) idx = 0;
+        return {
+          temp: `${Math.round(data.hourly.temperature_2m[idx])}°F`,
+          pressure: `${Math.round(data.hourly.surface_pressure[idx])} hPa`,
+          hum: `${data.hourly.relative_humidity_2m[idx]}%`
+        };
+      } catch (e) { return { temp: 'Err', pressure: 'Err', hum: 'Err' }; }
+    }
+
+    function getGPS() {
+      return new Promise(res => {
+        if (!navigator.geolocation) return res(null);
+        navigator.geolocation.getCurrentPosition(p => res({lat: p.coords.latitude, lon: p.coords.longitude}), () => res(null));
+      });
+    }
+
+    // --- UI RENDERING ---
+    async function renderUI() {
+      const list = document.getElementById('catchList');
+      const items = await loadCatches();
+      
+      if (items.length === 0) {
+        list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches logged. Be the first!</div>';
+        return;
+      }
+
+      list.innerHTML = items.map(item => `
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative animate-in fade-in duration-500">
+          <button onclick="deleteEntry('${item.id}')" class="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition">✕</button>
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <h3 class="text-lg font-bold text-indigo-950">${item.species}</h3>
+              <p class="text-sm text-slate-600 font-medium">✨ ${item.lure}</p>
+            </div>
+            <span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">
+              ${new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-y-2 gap-x-4 border-t pt-3 mt-2">
+            <div class="text-xs text-slate-500 font-semibold">🌡️ TEMP: <span class="text-slate-900">${item.weather?.temp}</span></div>
+            <div class="text-xs text-slate-500 font-semibold">⏲️ BARO: <span class="text-slate-900">${item.weather?.pressure}</span></div>
+            <div class="text-xs text-slate-500 font-semibold">💧 HUM: <span class="text-slate-900">${item.weather?.hum}</span></div>
+            <div class="text-xs text-slate-500 font-semibold">🌑 MOON: <span class="text-slate-900 text-[10px]">${item.moon}</span></div>
+            <div class="col-span-2 text-[10px] text-indigo-400 font-mono italic">
+              📍 ${item.loc ? `${item.loc.lat.toFixed(4)}, ${item.loc.lon.toFixed(4)}` : 'Location Private'}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // --- FORM HANDLING ---
+    document.getElementById('catchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const spinner = document.getElementById('loadingSpinner');
+      
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      const loc = await getGPS();
+      const weather = await fetchWeather(loc?.lat, loc?.lon);
+      const timestamp = Date.now();
+      const moon = getMoonDetails(new Date(timestamp));
+
+      await saveCatch({
+        species: document.getElementById('species').value,
+        lure: document.getElementById('lure').value,
+        loc, weather, moon, timestamp
+      });
+
+      e.target.reset();
+      await renderUI();
+      
+      btn.disabled = false;
+      spinner.classList.add('hidden');
+    });
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', renderUI);
+  </script>
+</body>
+</html>

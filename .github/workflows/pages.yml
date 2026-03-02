@@ -1,0 +1,34 @@
+name: "Deploy to GitHub Pages"
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare artifact
+        run: |
+          rm -rf public
+          mkdir -p public
+          # copy all files except actions/artifacts
+          shopt -s dotglob
+          cp -R . public/ || true
+          rm -rf public/.git
+          rm -rf public/.github
+      - uses: actions/upload-pages-artifact@v1
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/deploy-pages@v1
