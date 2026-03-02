@@ -11,6 +11,7 @@
   <link rel="apple-touch-icon" href="https://scontent-bos5-1.cdninstagram.com/v/t51.2885-19/417958140_348114848001203_7605986349907024479_n.jpg?stp=dst-jpg_s150x150_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=scontent-bos5-1.cdninstagram.com&_nc_cat=111&_nc_oc=Q6cZ2QGvPHaHInqhHSC06z5j945Wmc06HbIG6Dq7J1ELzTgzK5FtZ1Y2KsqYLTs9oaPEDIc&_nc_ohc=SmsY5x6iV7wQ7kNvwEAwADd&_nc_gid=yBOGZ-5UJsBQoNEmvZOGYg&edm=AOQ1c0wBAAAA&ccb=7-5&oh=00_Afw1rz3aPKC0VDhePH7C-gzHMUWx52EU9RjobUsySeM7-Q&oe=69AB7BE3&_nc_sid=8b3546">
 
   <title>Group Fishing Log</title>
+  <link rel="manifest" href="manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     #catchList { max-height: 60vh; overflow-y: auto; }
@@ -21,6 +22,9 @@
 <body class="bg-slate-100 text-slate-900 font-sans pb-10">
 
   <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
+    <div id="offlineIndicator" class="hidden mb-3 bg-yellow-600 p-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+      <span>📡</span> Offline Mode - Data will sync when online
+    </div>
     <h1 class="text-3xl font-bold tracking-tight">Group Fishing Log</h1>
     <p class="text-indigo-200 text-sm mt-1">Shared Catch Tracker • Geneva, NY</p>
     <div class="mt-4 flex gap-2 justify-center">
@@ -99,6 +103,7 @@
     let allCatches = [];
     let filterSpecies = '';
     let filterUser = '';
+    let isOnline = navigator.onLine;
 
     function getCurrentUser() {
       return document.getElementById('name')?.value || localStorage.getItem('currentUser') || null;
@@ -112,6 +117,71 @@
       return 'Night';
     }
 
+    // --- OFFLINE STORAGE ---
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open('FishingAppDB', 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains('offlineCatches')) {
+            db.createObjectStore('offlineCatches', { keyPath: 'timestamp' });
+          }
+        };
+      });
+    }
+
+    async function saveOfflineCatch(catchData) {
+      try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(['offlineCatches'], 'readwrite');
+          const store = transaction.objectStore('offlineCatches');
+          const request = store.add(catchData);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve();
+        });
+      } catch (e) {
+        console.error('Failed to save offline catch:', e);
+      }
+    }
+
+    async function getOfflineCatches() {
+      try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(['offlineCatches'], 'readonly');
+          const store = transaction.objectStore('offlineCatches');
+          const request = store.getAll();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result || []);
+        });
+      } catch (e) {
+        console.error('Failed to get offline catches:', e);
+        return [];
+      }
+    }
+
+    async function syncOfflineCatches() {
+      const offlineCatches = await getOfflineCatches();
+      for (const catchData of offlineCatches) {
+        try {
+          await saveCatch(catchData);
+          // Remove from offline storage after successful sync
+          const db = await openDB();
+          new Promise((resolve) => {
+            const transaction = db.transaction(['offlineCatches'], 'readwrite');
+            const store = transaction.objectStore('offlineCatches');
+            store.delete(catchData.timestamp);
+            transaction.oncomplete = () => resolve();
+          });
+        } catch (e) {
+          console.error('Failed to sync catch:', e);
+        }
+      }
+    }
+
     // --- DATABASE OPERATIONS ---
     async function loadCatches() {
       try {
@@ -120,9 +190,20 @@
         if (!data) return [];
         allCatches = Object.keys(data).map(key => ({ id: key, ...data[key] }))
                      .sort((a, b) => b.timestamp - a.timestamp);
+        
+        // Also include offline catches that haven't synced yet
+        if (!isOnline) {
+          const offlineCatches = await getOfflineCatches();
+          allCatches = [...offlineCatches, ...allCatches].sort((a, b) => b.timestamp - a.timestamp);
+        }
+        
         return allCatches;
       } catch (e) {
         console.error("Load failed:", e);
+        // If offline, return just offline catches
+        if (!isOnline) {
+          return await getOfflineCatches();
+        }
         return [];
       }
     }
@@ -141,6 +222,10 @@
     }
 
     async function saveComment(catchId, user, text) {
+      if (!isOnline) {
+        alert('Cannot add comments while offline');
+        return;
+      }
       await fetch(`https://fishing-app-4b031-default-rtdb.firebaseio.com/comments/${catchId}.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,11 +234,23 @@
     }
 
     async function saveCatch(data) {
-      await fetch(DB_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      try {
+        const res = await fetch(DB_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('Save failed');
+        return true;
+      } catch (e) {
+        console.error('Save catch error:', e);
+        // If offline, store locally
+        if (!isOnline) {
+          await saveOfflineCatch(data);
+          return true;
+        }
+        throw e;
+      }
     }
 
     async function deleteEntry(id, owner) {
@@ -499,6 +596,44 @@
         document.getElementById('name').value = savedName;
       }
       renderUI();
+    });
+
+    // --- SERVICE WORKER & OFFLINE SUPPORT ---
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => {
+          console.log('Service Worker registered');
+          // Periodically check for offline catches to sync
+          setInterval(async () => {
+            if (isOnline) {
+              await syncOfflineCatches();
+            }
+          }, 30000); // Check every 30 seconds
+        })
+        .catch(err => console.log('Service Worker registration failed:', err));
+    }
+
+    // Handle online/offline events
+    window.addEventListener('online', () => {
+      isOnline = true;
+      document.getElementById('offlineIndicator').classList.add('hidden');
+      renderUI();
+      syncOfflineCatches();
+      if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SYNC_CATCHES' });
+      }
+    });
+
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      document.getElementById('offlineIndicator').classList.remove('hidden');
+    });
+
+    // Set initial offline indicator state
+    window.addEventListener('load', () => {
+      if (!navigator.onLine) {
+        document.getElementById('offlineIndicator').classList.remove('hidden');
+      }
     });
   </script>
 </body>
