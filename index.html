@@ -43,6 +43,20 @@
         <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lure / Bait Used</label>
         <input type="text" id="lure" placeholder="e.g. Silver Spoon" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required />
       </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Weight (lbs)</label>
+          <input type="number" id="weight" placeholder="e.g. 4.5" step="0.1" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Length (in)</label>
+          <input type="number" id="length" placeholder="e.g. 18" step="0.1" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Fishing Spot</label>
+        <input type="text" id="spot" placeholder="e.g. North Bay" class="w-full p-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+      </div>
       <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3">
         <span>Record Catch</span>
         <div id="loadingSpinner" class="loader hidden"></div>
@@ -53,19 +67,44 @@
       <h2 class="text-xl font-bold text-slate-800">Recent Activity</h2>
       <span class="text-xs text-slate-500 uppercase font-semibold">Group Feed</span>
     </div>
+
+    <div class="mt-4 flex gap-2 flex-wrap mb-4">
+      <input type="text" id="filterSpecies" placeholder="Filter by species..." class="flex-1 min-w-[120px] p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+      <input type="text" id="filterUser" placeholder="Filter by user..." class="flex-1 min-w-[120px] p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+      <button id="clearFilters" class="px-3 py-2 text-sm bg-slate-300 hover:bg-slate-400 rounded-lg font-semibold">Reset</button>
+    </div>
     
     <div id="catchList" class="mt-4 space-y-4">
       <div class="text-center py-10 text-slate-400">Loading collective data...</div>
     </div>
   </main>
 
+  <!-- Catch Details Modal -->
+  <div id="catchModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div id="modalContent" class="p-6"></div>
+    </div>
+  </div>
+
   <script>
     // --- CONFIGURATION ---
     const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+    const COMMENTS_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/comments.json';
 
-    // Get current user name from form or localStorage
+    let allCatches = [];
+    let filterSpecies = '';
+    let filterUser = '';
+
     function getCurrentUser() {
       return document.getElementById('name')?.value || localStorage.getItem('currentUser') || null;
+    }
+
+    function getTimeOfDay(timestamp) {
+      const hour = new Date(timestamp).getHours();
+      if (hour >= 5 && hour < 12) return 'Morning';
+      if (hour >= 12 && hour < 17) return 'Afternoon';
+      if (hour >= 17 && hour < 21) return 'Evening';
+      return 'Night';
     }
 
     // --- DATABASE OPERATIONS ---
@@ -74,13 +113,34 @@
         const res = await fetch(DB_URL);
         const data = await res.json();
         if (!data) return [];
-        // Convert Firebase object to array and include the ID for deletion
-        return Object.keys(data).map(key => ({ id: key, ...data[key] }))
+        allCatches = Object.keys(data).map(key => ({ id: key, ...data[key] }))
                      .sort((a, b) => b.timestamp - a.timestamp);
+        return allCatches;
       } catch (e) {
         console.error("Load failed:", e);
         return [];
       }
+    }
+
+    async function loadComments(catchId) {
+      try {
+        const res = await fetch(`https://fishing-app-4b031-default-rtdb.firebaseio.com/comments/${catchId}.json`);
+        const data = await res.json();
+        if (!data) return [];
+        return Object.keys(data).map(key => ({ id: key, ...data[key] }))
+                     .sort((a, b) => a.timestamp - b.timestamp);
+      } catch (e) {
+        console.error("Load comments failed:", e);
+        return [];
+      }
+    }
+
+    async function saveComment(catchId, user, text) {
+      await fetch(`https://fishing-app-4b031-default-rtdb.firebaseio.com/comments/${catchId}.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, text, timestamp: Date.now() })
+      });
     }
 
     async function saveCatch(data) {
@@ -144,31 +204,75 @@
       });
     }
 
+    // --- STATISTICS ---
+    function calculateStats(catches) {
+      const stats = {
+        totalCatches: catches.length,
+        bySpecies: {},
+        byUser: {},
+        byTime: { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 },
+        bySpot: {},
+        avgWeight: 0,
+        largestCatch: null
+      };
+
+      let totalWeight = 0;
+      let catchesWithWeight = 0;
+
+      catches.forEach(c => {
+        stats.bySpecies[c.species] = (stats.bySpecies[c.species] || 0) + 1;
+        stats.byUser[c.name] = (stats.byUser[c.name] || 0) + 1;
+        stats.byTime[getTimeOfDay(c.timestamp)]++;
+        if (c.spot) stats.bySpot[c.spot] = (stats.bySpot[c.spot] || 0) + 1;
+        
+        if (c.weight) {
+          totalWeight += parseFloat(c.weight);
+          catchesWithWeight++;
+        }
+        if (!stats.largestCatch || (c.weight && parseFloat(c.weight) > parseFloat(stats.largestCatch.weight || 0))) {
+          stats.largestCatch = c;
+        }
+      });
+
+      stats.avgWeight = catchesWithWeight > 0 ? (totalWeight / catchesWithWeight).toFixed(1) : 'N/A';
+      return stats;
+    }
+
     // --- UI RENDERING ---
     async function renderUI() {
       const list = document.getElementById('catchList');
       const items = await loadCatches();
       const currentUser = getCurrentUser();
-      
-      if (items.length === 0) {
-        list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches logged. Be the first!</div>';
+
+      const filtered = items.filter(item => {
+        const speciesMatch = !filterSpecies || item.species.toLowerCase().includes(filterSpecies.toLowerCase());
+        const userMatch = !filterUser || item.name.toLowerCase().includes(filterUser.toLowerCase());
+        return speciesMatch && userMatch;
+      });
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="text-center py-10 text-slate-400">No catches found.</div>';
         return;
       }
 
-      list.innerHTML = items.map(item => `
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative animate-in fade-in duration-500">
-          ${currentUser === item.name ? `<button onclick="deleteEntry('${item.id}', '${item.name}')" class="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition">✕</button>` : ''}
+      const stats = calculateStats(filtered);
+
+      list.innerHTML = filtered.map(item => `
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm animate-in fade-in duration-500 cursor-pointer hover:shadow-md transition" onclick="showCatchModal('${item.id}')">
+          ${currentUser === item.name ? `<button onclick="event.stopPropagation(); deleteEntry('${item.id}', '${item.name}')" class="float-right text-slate-300 hover:text-red-500 transition">✕</button>` : ''}
           <div class="flex justify-between items-start mb-2">
             <div>
               <h3 class="text-lg font-bold text-indigo-950">${item.species}</h3>
               <p class="text-sm text-slate-600 font-medium">✨ ${item.lure}</p>
-              <p class="text-xs text-slate-500 mt-1">🎣 Logged by <span class="font-semibold">${item.name}</span></p>
+              <p class="text-xs text-slate-500 mt-1">🎣 ${item.name}${item.spot ? ` • ${item.spot}` : ''}</p>
             </div>
             <span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">
               ${new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </span>
           </div>
           <div class="grid grid-cols-2 gap-y-2 gap-x-4 border-t pt-3 mt-2">
+            ${item.weight ? `<div class="text-xs text-slate-500 font-semibold">⚖️ WEIGHT: <span class="text-slate-900">${item.weight} lbs</span></div>` : ''}
+            ${item.length ? `<div class="text-xs text-slate-500 font-semibold">📏 LENGTH: <span class="text-slate-900">${item.length} in</span></div>` : ''}
             <div class="text-xs text-slate-500 font-semibold">🌡️ TEMP: <span class="text-slate-900">${item.weather?.temp}</span></div>
             <div class="text-xs text-slate-500 font-semibold">⏲️ BARO: <span class="text-slate-900">${item.weather?.pressure}</span></div>
             <div class="text-xs text-slate-500 font-semibold">💧 HUM: <span class="text-slate-900">${item.weather?.hum}</span></div>
@@ -179,6 +283,86 @@
           </div>
         </div>
       `).join('');
+    }
+
+    async function showCatchModal(id) {
+      const catch_ = allCatches.find(c => c.id === id);
+      if (!catch_) return;
+
+      const comments = await loadComments(id);
+      const modal = document.getElementById('catchModal');
+      const content = document.getElementById('modalContent');
+
+      const date = new Date(catch_.timestamp);
+      
+      content.innerHTML = `
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-indigo-950">${catch_.species}</h2>
+            <p class="text-sm text-slate-600">🎣 Caught by <span class="font-semibold">${catch_.name}</span></p>
+          </div>
+          <button onclick="document.getElementById('catchModal').classList.add('hidden')" class="text-2xl text-slate-300 hover:text-slate-500">✕</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-lg">
+          <div><span class="text-xs font-bold text-slate-500 uppercase">Species</span><p class="text-lg font-bold">${catch_.species}</p></div>
+          <div><span class="text-xs font-bold text-slate-500 uppercase">Lure</span><p class="text-lg font-bold">${catch_.lure}</p></div>
+          ${catch_.weight ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Weight</span><p class="text-lg font-bold">${catch_.weight} lbs</p></div>` : ''}
+          ${catch_.length ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Length</span><p class="text-lg font-bold">${catch_.length} in</p></div>` : ''}
+          ${catch_.spot ? `<div><span class="text-xs font-bold text-slate-500 uppercase">Spot</span><p class="text-lg font-bold">${catch_.spot}</p></div>` : ''}
+          <div><span class="text-xs font-bold text-slate-500 uppercase">Time of Day</span><p class="text-lg font-bold">${getTimeOfDay(catch_.timestamp)}</p></div>
+          <div><span class="text-xs font-bold text-slate-500 uppercase">Date & Time</span><p class="text-sm font-bold">${date.toLocaleString()}</p></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mb-6 p-4 bg-blue-50 rounded-lg">
+          <div class="text-center"><span class="block text-2xl">🌡️</span><p class="text-xs text-slate-600">${catch_.weather?.temp}</p></div>
+          <div class="text-center"><span class="block text-2xl">💧</span><p class="text-xs text-slate-600">${catch_.weather?.hum}</p></div>
+          <div class="text-center"><span class="block text-2xl">⏲️</span><p class="text-xs text-slate-600">${catch_.weather?.pressure}</p></div>
+        </div>
+
+        <div class="mb-6 p-4 bg-purple-50 rounded-lg">
+          <p class="text-xs font-bold text-slate-500 uppercase mb-2">Moon Phase</p>
+          <p class="text-sm">${catch_.moon}</p>
+        </div>
+
+        <div class="mb-6 p-4 bg-indigo-50 rounded-lg">
+          <p class="text-xs font-bold text-slate-500 uppercase mb-2">Location</p>
+          <p class="text-sm font-mono">${catch_.loc ? `${catch_.loc.lat.toFixed(6)}, ${catch_.loc.lon.toFixed(6)}` : 'Location Private'}</p>
+        </div>
+
+        <div class="border-t pt-4">
+          <h3 class="font-bold text-slate-800 mb-3">Comments (${comments.length})</h3>
+          <div class="space-y-3 mb-4 max-h-64 overflow-y-auto">
+            ${comments.map(c => `
+              <div class="bg-slate-50 p-3 rounded-lg">
+                <p class="text-xs font-bold text-indigo-600">${c.user}</p>
+                <p class="text-sm text-slate-700">${c.text}</p>
+              </div>
+            `).join('')}
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="commentInput" placeholder="Add a comment..." class="flex-1 p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            <button onclick="addComment('${id}')" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Post</button>
+          </div>
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+    }
+
+    async function addComment(catchId) {
+      const input = document.getElementById('commentInput');
+      const text = input.value.trim();
+      const user = getCurrentUser();
+
+      if (!text || !user) {
+        alert('Please enter a name and comment');
+        return;
+      }
+
+      await saveComment(catchId, user, text);
+      input.value = '';
+      await showCatchModal(catchId);
     }
 
     // --- FORM HANDLING ---
@@ -202,6 +386,9 @@
         name,
         species: document.getElementById('species').value,
         lure: document.getElementById('lure').value,
+        weight: document.getElementById('weight').value || null,
+        length: document.getElementById('length').value || null,
+        spot: document.getElementById('spot').value || null,
         loc, weather, moon, timestamp
       });
 
@@ -211,6 +398,25 @@
       
       btn.disabled = false;
       spinner.classList.add('hidden');
+    });
+
+    // --- FILTER HANDLING ---
+    document.getElementById('filterSpecies').addEventListener('input', (e) => {
+      filterSpecies = e.target.value;
+      renderUI();
+    });
+
+    document.getElementById('filterUser').addEventListener('input', (e) => {
+      filterUser = e.target.value;
+      renderUI();
+    });
+
+    document.getElementById('clearFilters').addEventListener('click', () => {
+      filterSpecies = '';
+      filterUser = '';
+      document.getElementById('filterSpecies').value = '';
+      document.getElementById('filterUser').value = '';
+      renderUI();
     });
 
     // Initial Load
