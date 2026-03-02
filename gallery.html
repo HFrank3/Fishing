@@ -78,8 +78,8 @@
 
   <script>
     // --- CONFIGURATION ---
-    const STORAGE_API = 'https://firebasestorage.googleapis.com/v0/b/fishing-app-4b031.appspot.com/o';
     const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/photos.json';
+    const STORAGE_BUCKET = 'fishing-app-4b031.appspot.com';
 
     function getCurrentUser() {
       return document.getElementById('name')?.value || localStorage.getItem('currentUser') || null;
@@ -119,25 +119,39 @@
       renderGallery();
     }
 
-    async function uploadToImgur(file) {
-      const formData = new FormData();
-      formData.append('image', file);
-
+    async function uploadToFirebase(file) {
       try {
-        const res = await fetch('https://api.imgur.com/3/image', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Client-ID 5a937f1b6ee60fb'
-          },
-          body: formData
+        const timestamp = Date.now();
+        const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}`;
+        const fileExt = file.name.split('.').pop();
+        const storagePath = `photos/${fileName}.${fileExt}`;
+        
+        // Convert to base64
+        const reader = new FileReader();
+        return new Promise((resolve) => {
+          reader.onload = async (e) => {
+            const base64String = e.target.result.split(',')[1];
+            try {
+              const res = await fetch(
+                `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(storagePath)}?uploadType=media`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': file.type },
+                  body: atob(base64String)
+                }
+              );
+              const data = await res.json();
+              const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(storagePath)}?alt=media`;
+              resolve(downloadUrl);
+            } catch (err) {
+              console.error("Firebase upload error:", err);
+              resolve(null);
+            }
+          };
+          reader.readAsDataURL(file);
         });
-        const data = await res.json();
-        if (data.success) {
-          return data.data.link;
-        }
-        throw new Error('Upload failed');
       } catch (e) {
-        console.error("Imgur upload failed:", e);
+        console.error("Upload failed:", e);
         return null;
       }
     }
@@ -200,7 +214,7 @@
       const name = document.getElementById('name').value;
       localStorage.setItem('currentUser', name);
 
-      const imageUrl = await uploadToImgur(file);
+      const imageUrl = await uploadToFirebase(file);
       
       if (!imageUrl) {
         alert('Failed to upload image. Please try again.');
