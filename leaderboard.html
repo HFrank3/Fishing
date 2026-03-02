@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#1e1b4b" />
+  <title>FishLog - Leaderboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans pb-10">
+
+  <header class="bg-indigo-900 text-white p-6 text-center shadow-lg mb-6">
+    <h1 class="text-3xl font-bold tracking-tight">Leaderboard</h1>
+    <p class="text-indigo-200 text-sm mt-1">Top Anglers & Trophy Catches • Geneva, NY</p>
+    <div class="mt-4 flex gap-2 justify-center">
+      <a href="index.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Catch Log</a>
+      <a href="gallery.html" class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-sm font-semibold transition">Gallery</a>
+      <a href="leaderboard.html" class="px-4 py-2 bg-indigo-500 rounded-lg text-sm font-semibold">Leaders</a>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 space-y-8">
+    <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+      <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">🏆 Top Anglers</h2>
+      <div id="anglerList" class="space-y-3">
+        <p class="text-slate-400 text-sm italic">Calculating standings...</p>
+      </div>
+    </section>
+
+    <section class="bg-white p-5 rounded-xl shadow-md border border-slate-200">
+      <h2 class="text-xl font-bold text-indigo-950 mb-4 flex items-center gap-2">⚖️ Heavyweights</h2>
+      <div id="heavyweightList" class="space-y-3">
+        <p class="text-slate-400 text-sm italic">Scanning the scales...</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const DB_URL = 'https://fishing-app-4b031-default-rtdb.firebaseio.com/catches.json';
+
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch(DB_URL);
+        const data = await res.json();
+        if (!data) return;
+
+        const catches = Object.values(data);
+        
+        // 1. Calculate Top Anglers (Count)
+        const anglerCounts = {};
+        catches.forEach(c => {
+          anglerCounts[c.name] = (anglerCounts[c.name] || 0) + 1;
+        });
+
+        const sortedAnglers = Object.entries(anglerCounts)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 5); // Top 5
+
+        document.getElementById('anglerList').innerHTML = sortedAnglers.map(([name, count], i) => `
+          <div class="flex justify-between items-center p-2 ${i === 0 ? 'bg-yellow-50 rounded-lg border border-yellow-200' : ''}">
+            <span class="font-bold text-slate-700">${i + 1}. ${name}</span>
+            <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">${count} catches</span>
+          </div>
+        `).join('');
+
+        // 2. Calculate Heavyweights (Weight)
+        const heavyweights = catches
+          .filter(c => c.weight)
+          .sort((a, b) => parseFloat(b.weight) - parseFloat(a.weight))
+          .slice(0, 5);
+
+        document.getElementById('heavyweightList').innerHTML = heavyweights.map((c, i) => `
+          <div class="flex justify-between items-center p-2 ${i === 0 ? 'bg-blue-50 rounded-lg border border-blue-200' : ''}">
+            <div>
+              <p class="font-bold text-slate-700">${c.species}</p>
+              <p class="text-[10px] text-slate-500 uppercase font-bold">${c.name} • ${c.spot || 'Unknown'}</p>
+            </div>
+            <span class="text-lg font-black text-indigo-900">${c.weight} <span class="text-xs">lbs</span></span>
+          </div>
+        `).join('');
+
+      } catch (e) {
+        console.error("Leaderboard error:", e);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadLeaderboard);
+  </script>
+</body>
+</html>
